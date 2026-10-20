@@ -26,3 +26,12 @@ Open: __main__ runner and reconnect handling (plan L2) UNTESTED / OUT OF SCOPE; 
 Done: R3b bookkeeping – PROGRESS.md entry for slice 8 / R6 / R7 / R8 / ramp contract; R9 rawdump.py (split_raw_frames, select_golden, CLI) + test_rawdump.py (24 tests: garbage skip, corrupt skip, raw bytes exact, consecutive-seq, force, CLI monkeypatch, 4-check golden); R10 SerialSource hardening (unopened Serial, dtr/rts before open, 1 MiB buffer, serial_number attr) + 11 tests via fake serial module; CONTEXT.md golden-frames line updated; 331 passed 4 skipped.
 Next: firmware (slice 3b, hardware only), then real-hardware serial capture and ramp verification.
 Open: SerialSource / rawdump CLI UNTESTED ON HARDWARE; capture.py __main__ UNTESTED ON HARDWARE; startup grace means first ~2*window_s dead_node_ids==[] for a truly dead node.
+Done: FW1 – pure-C protocol core (kaawayan_proto: crc32, frame, ramp), host test test_proto (CRC vector 0xCBF43926, golden frames byte-exact, ramp wrap/limits, len>4096 reject); bme_status codes added to CONTEXT.md §4.
+Next: FW2 – streaming skeleton (I2S, ring buffer, USB Serial/JTAG backend, ramp mode, board configs).
+Open: ESP-IDF idf.py missing (firmware UNBUILT / UNTESTED ON HARDWARE); host tests run and passed with gcc 14.2.0.
+Done: FW2 – streaming skeleton (I2S master 48kHz 32b, ring buffer 32 frames, USB Serial/JTAG backend, ramp mode, board configs for XIAO and DevKit, README with build/flash/verify procedures); all firmware files UNBUILT / UNTESTED ON HARDWARE.
+Next: FW3 – BME280 driver with host tests, mic health check, task watchdog, TinyUSB backend.
+Open: ESP-IDF idf.py missing (firmware UNBUILT / UNTESTED ON HARDWARE); USB serial uniqueness unverified on hardware; real mics (ramp mode off) untested.
+Done: FW3 – BME280 driver with Bosch integer compensation in pure C, test_bme280 host test (temp/rh vectors exact, BMP280 fallback), mic health variance check at boot, task watchdog subscriptions, TinyUSB CDC backend with eFuse MAC serial string; README F4 backend comparison matrix.
+Next: Hardware deployment and validation – flash Node 1 and Node 2, capture 10-minute ramp trial, run verify_ramp.py and F4 backend selection.
+Open: ESP-IDF idf.py missing (all firmware files UNBUILT / UNTESTED ON HARDWARE); unverified USB serial uniqueness for each backend; real mics (ramp mode off) not yet tested.

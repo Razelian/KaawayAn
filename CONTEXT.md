@@ -84,6 +84,9 @@ Payloads:
   (~194 kB/s). Sample index = seq * 512.
 - ENV (3), once per second, `<hHIIB` (13 B): temp_c_x100 i16, rh_x100 u16,
   overrun_count u32, usb_drop_count u32, bme_status u8.
+  bme_status codes: 0 ok, 1 no response from the BME280 (I2C NACK), 2 chip id is not 0x60
+  (0x58 = BMP280: temperature valid, humidity 0), 3 read error or timeout. When status != 0
+  the node still sends ENV frames (temp and rh = 0 unless noted) so the laptop keeps its counters.
 - STARTUP (1), `<BBBBIIHBB` (16 B): board_type u8 (1 XIAO, 2 devkit), fw_major u8,
   fw_minor u8, fw_patch u8, git_short u32, sample_rate_hz u32, samples_per_ch u16,
   channels u8, mic_flags u8 (bit0 M1 responded at boot, bit1 M2). Sent at boot and

@@ -1,0 +1,63 @@
+#ifndef BOARD_CONFIG_H
+#define BOARD_CONFIG_H
+
+#include <stdint.h>
+#include "sdkconfig.h"
+
+/* Firmware version: 0.1.0 */
+#define KAAWAYAN_FW_MAJOR 0
+#define KAAWAYAN_FW_MINOR 1
+#define KAAWAYAN_FW_PATCH 0
+
+/* Git short hash from build or fallback */
+#ifndef KAAWAYAN_GIT_SHORT
+#ifdef CONFIG_KAAWAYAN_GIT_SHORT
+#define KAAWAYAN_GIT_SHORT CONFIG_KAAWAYAN_GIT_SHORT
+#else
+#define KAAWAYAN_GIT_SHORT 0x00000000u
+#endif
+#endif
+
+/* Board Types per CONTEXT §4: 1 XIAO, 2 devkit */
+#define KAAWAYAN_BOARD_TYPE_XIAO   1
+#define KAAWAYAN_BOARD_TYPE_DEVKIT 2
+
+#if defined(CONFIG_KAAWAYAN_BOARD_DEVKIT)
+#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_DEVKIT
+#elif defined(CONFIG_KAAWAYAN_BOARD_XIAO)
+#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_XIAO
+#elif defined(BOARD_DEVKIT)
+#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_DEVKIT
+#else
+#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_XIAO
+#endif
+
+/* Node ID: node 1 (XIAO) or node 2 (devkit) */
+#ifdef CONFIG_KAAWAYAN_NODE_ID
+#define KAAWAYAN_NODE_ID ((uint16_t)CONFIG_KAAWAYAN_NODE_ID)
+#elif defined(NODE_ID)
+#define KAAWAYAN_NODE_ID ((uint16_t)NODE_ID)
+#else
+#define KAAWAYAN_NODE_ID ((uint16_t)1)
+#endif
+
+/* Pin definitions (both boards per CONTEXT §11) */
+#define KAAWAYAN_PIN_I2S_BCLK 7
+#define KAAWAYAN_PIN_I2S_WS   8
+#define KAAWAYAN_PIN_I2S_DIN  9   /* DOUT pin on INMP441 microphones */
+
+#define KAAWAYAN_PIN_I2C_SDA  5
+#define KAAWAYAN_PIN_I2C_SCL  6
+
+/* Audio timing constants */
+#define KAAWAYAN_SAMPLE_RATE_HZ 48000
+#define KAAWAYAN_SAMPLES_PER_CH 512
+#define KAAWAYAN_CHANNELS       2
+
+/* Frame sizes */
+#define KAAWAYAN_AUDIO_PAYLOAD_BYTES (KAAWAYAN_SAMPLES_PER_CH * KAAWAYAN_CHANNELS * (int)sizeof(int16_t)) /* 2048 */
+#define KAAWAYAN_FRAME_HDR_BYTES     20
+#define KAAWAYAN_FRAME_CRC_BYTES     4
+#define KAAWAYAN_AUDIO_FRAME_BYTES   (KAAWAYAN_FRAME_HDR_BYTES + KAAWAYAN_AUDIO_PAYLOAD_BYTES + KAAWAYAN_FRAME_CRC_BYTES) /* 2072 */
+
+#endif /* BOARD_CONFIG_H */

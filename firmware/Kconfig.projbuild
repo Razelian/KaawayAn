@@ -1,0 +1,42 @@
+menu "KaawayAn Firmware Configuration"
+
+    choice KAAWAYAN_BOARD
+        prompt "Board Selection"
+        default KAAWAYAN_BOARD_XIAO
+        help
+            Select the target board type (XIAO ESP32-S3 or devkit).
+
+        config KAAWAYAN_BOARD_XIAO
+            bool "Seeed Studio XIAO ESP32-S3 (Node 1)"
+
+        config KAAWAYAN_BOARD_DEVKIT
+            bool "ESP32-S3 DevKit N16R8 (Node 2)"
+    endchoice
+
+    config KAAWAYAN_NODE_ID
+        int "Node ID"
+        default 1
+        help
+            Unique ID for this acoustic node (1 or 2).
+
+    config KAAWAYAN_RAMP_MODE
+        bool "Ramp Test Mode"
+        default y
+        help
+            Overwrite audio samples with deterministic counter ramp.
+            Real I2S is still clocked and captured.
+
+    choice KAAWAYAN_USB_BACKEND
+        prompt "USB Output Backend"
+        default KAAWAYAN_USB_BACKEND_JTAG
+        help
+            Select the USB output backend.
+
+        config KAAWAYAN_USB_BACKEND_JTAG
+            bool "USB Serial / JTAG (built-in S3 hardware)"
+
+        config KAAWAYAN_USB_BACKEND_TINYUSB
+            bool "TinyUSB CDC (esp_tinyusb component)"
+    endchoice
+
+endmenu

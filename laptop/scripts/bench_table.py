@@ -1,5 +1,5 @@
 """
-bench_table.py <trial_dir>... [--config <site.toml>]
+bench_table.py <trial_dir>... [--config <site.toml>] [--raw]
 
 Offline benchmark tool: reads node{id}.wav files and meta.json from each
 trial folder, runs bearing estimation across a grid of beta × band, and
@@ -16,6 +16,7 @@ Usage:
     python laptop/scripts/bench_table.py trial1/ trial2/ [--config config/site.toml]
 
 If --config is omitted, auto-detects config/site.toml relative to this script.
+--raw skips applying tau0_s and channel_swap from config.
 """
 
 from __future__ import annotations
@@ -104,107 +105,171 @@ def _load_wav(path: pathlib.Path) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Collect windows for one trial / one node / one (beta, band) cell
+# compute_table — pure, testable function
 # ---------------------------------------------------------------------------
 
-def _run_cell(
-    audio: np.ndarray,
-    true_theta: float,
+def compute_table(
+    trial_dirs: list[pathlib.Path],
     cfg: dict,
-    beta: float,
-    band: tuple[int, int],
-    gate_min_conf: float,
-) -> dict[str, Any]:
-    """Return per-window statistics for one (true_theta, beta, band) cell."""
-    fs = cfg["sample_rate_hz"] if "sample_rate_hz" in cfg else 48_000
+    raw: bool = False,
+) -> dict:
+    """Compute per-(beta,band) per-angle statistics over all trial dirs.
+
+    Returns
+    -------
+    dict with keys:
+      cells[(beta, band)][true_angle] -> dict(median_abs_err, p95_abs_err,
+          signed_median, mean_conf, pct_gated, n)
+      summary[(beta, band)] -> worst median_abs_err over true angles
+    """
+    fs = 48_000
+    gate_min_conf = cfg.get("gate_min_confidence", 0.0)
     window_s = cfg["window_s"]
     hop_s = cfg["hop_s"]
     d_m = cfg["mic_spacing_m"]
-    temp_c = 20.0  # default if no env.csv; overridden by caller
 
-    errs: list[float] = []
-    confs: list[float] = []
-    gated: int = 0
-
-    for _start, win in iter_windows(audio, fs, window_s, hop_s):
-        left = win[:, 0].astype(np.float64)
-        right = win[:, 1].astype(np.float64)
-        res = estimate_bearing(
-            left, right, fs, d_m, temp_c,
-            band_hz=band,
-            tau0_s=0.0,
-            channel_swap=False,
-            beta=beta,
-        )
-        err = res["theta_deg"] - true_theta
-        # Wrap to [-180, 180]
-        err = ((err + 180.0) % 360.0) - 180.0
-        errs.append(err)
-        confs.append(res["confidence"])
-        if res["confidence"] >= gate_min_conf:
-            gated += 1
-
-    if not errs:
-        return {"median_abs_err": float("nan"), "p95_abs_err": float("nan"),
-                "signed_median": float("nan"), "mean_conf": float("nan"),
-                "pct_gated": float("nan"), "n": 0}
-
-    abs_errs = np.abs(errs)
-    return {
-        "median_abs_err": float(np.median(abs_errs)),
-        "p95_abs_err": float(np.percentile(abs_errs, 95)),
-        "signed_median": float(np.median(errs)),
-        "mean_conf": float(np.mean(confs)),
-        "pct_gated": 100.0 * gated / len(errs),
-        "n": len(errs),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Load trial
-# ---------------------------------------------------------------------------
-
-def _load_trial(trial_dir: pathlib.Path, cfg: dict) -> dict[int, dict]:
-    """Return {node_id: {'audio': ndarray, 'true_theta': float, 'temp_c': float}}."""
-    meta_path = trial_dir / "meta.json"
-    if not meta_path.exists():
-        print(f"[WARN] No meta.json in {trial_dir}; skipping")
-        return {}
-
-    meta = json.loads(meta_path.read_text())
-    true_thetas: dict[str, float] = meta.get("true_theta_deg", {})
-
-    # Load optional env.csv for temperature
-    env_path = trial_dir / "env.csv"
-    temp_c_default = 20.0
-    if env_path.exists():
-        import csv
-        temps = []
-        with open(env_path) as f:
-            for row in csv.DictReader(f):
-                try:
-                    temps.append(float(row["temp_c"]))
-                except (KeyError, ValueError):
-                    pass
-        if temps:
-            temp_c_default = float(np.median(temps))
-
-    nodes: dict[int, dict] = {}
+    # Build node calibration maps
+    node_tau0: dict[int, float] = {}
+    node_swap: dict[int, bool] = {}
     for node in cfg.get("nodes", []):
         nid = node["node_id"]
-        wav_path = trial_dir / f"node{nid}.wav"
-        if not wav_path.exists():
+        node_tau0[nid] = node.get("tau0_s", 0.0)
+        node_swap[nid] = node.get("channel_swap", False)
+
+    # Collect per-angle entries across trials
+    # entries: list of dict(true_theta, audio, temp_c, tau0_s, channel_swap)
+    all_entries: list[dict] = []
+
+    for trial_dir in trial_dirs:
+        trial_dir = pathlib.Path(trial_dir).resolve()
+        meta_path = trial_dir / "meta.json"
+        if not meta_path.exists():
+            print(f"[SKIP] No meta.json in {trial_dir}")
             continue
-        theta_str = str(nid)
-        if theta_str not in true_thetas:
+
+        meta = json.loads(meta_path.read_text())
+
+        # true_theta_deg: may be dict {node_id: angle} or flat
+        raw_thetas = meta.get("true_theta_deg", {})
+        if not raw_thetas:
+            print(f"[SKIP] No true_theta_deg in {trial_dir}/meta.json")
             continue
-        audio = _load_wav(wav_path)
-        nodes[nid] = {
-            "audio": audio,
-            "true_theta": float(true_thetas[theta_str]),
-            "temp_c": temp_c_default,
-        }
-    return nodes
+
+        # Read temperature from node{id}_env.csv (new format) or env.csv (legacy)
+        temp_by_node: dict[int, float] = {}
+        for node in cfg.get("nodes", []):
+            nid = node["node_id"]
+            # Try per-node env first
+            env_path = trial_dir / f"node{nid}_env.csv"
+            if not env_path.exists():
+                env_path = trial_dir / "env.csv"
+            temps: list[float] = []
+            if env_path.exists():
+                import csv as _csv
+                with open(env_path) as f:
+                    for row in _csv.DictReader(f):
+                        try:
+                            temps.append(float(row["temp_c"]))
+                        except (KeyError, ValueError):
+                            pass
+            temp_by_node[nid] = float(np.median(temps)) if temps else 20.0
+
+        for node in cfg.get("nodes", []):
+            nid = node["node_id"]
+            wav_path = trial_dir / f"node{nid}.wav"
+            if not wav_path.exists():
+                print(f"[SKIP] No node{nid}.wav in {trial_dir}")
+                continue
+
+            theta_str = str(nid)
+            if theta_str not in raw_thetas:
+                print(f"[SKIP] No true_theta_deg for node {nid} in {trial_dir}/meta.json")
+                continue
+
+            audio = _load_wav(wav_path)
+            tau0 = 0.0 if raw else node_tau0.get(nid, 0.0)
+            swap = False if raw else node_swap.get(nid, False)
+            all_entries.append({
+                "true_theta": float(raw_thetas[theta_str]),
+                "audio": audio,
+                "temp_c": temp_by_node[nid],
+                "tau0_s": tau0,
+                "channel_swap": swap,
+                "node_id": nid,
+            })
+
+    if not all_entries:
+        return {"cells": {}, "summary": {}}
+
+    true_angles = sorted({e["true_theta"] for e in all_entries})
+
+    cells: dict = {}
+    summary: dict = {}
+
+    for beta in BETAS:
+        for band in BANDS:
+            key = (beta, band)
+            cells[key] = {}
+
+            worst_median = 0.0
+            for theta in true_angles:
+                entries = [e for e in all_entries if e["true_theta"] == theta]
+                errs: list[float] = []
+                confs: list[float] = []
+                gated: int = 0
+
+                for entry in entries:
+                    audio = entry["audio"]
+                    temp_c = entry["temp_c"]
+                    tau0 = entry["tau0_s"]
+                    swap = entry["channel_swap"]
+                    for _start, win in iter_windows(audio, fs, window_s, hop_s):
+                        left = win[:, 0].astype(np.float64)
+                        right = win[:, 1].astype(np.float64)
+                        res = estimate_bearing(
+                            left, right, fs, d_m, temp_c,
+                            band_hz=band, tau0_s=tau0,
+                            channel_swap=swap, beta=beta,
+                        )
+                        err = res["theta_deg"] - theta
+                        err = ((err + 180.0) % 360.0) - 180.0
+                        errs.append(err)
+                        confs.append(res["confidence"])
+                        if res["confidence"] >= gate_min_conf:
+                            gated += 1
+
+                if not errs:
+                    cells[key][theta] = {
+                        "median_abs_err": float("nan"),
+                        "p95_abs_err": float("nan"),
+                        "signed_median": float("nan"),
+                        "mean_conf": float("nan"),
+                        "pct_gated": float("nan"),
+                        "n": 0,
+                    }
+                    continue
+
+                abs_errs = np.abs(errs)
+                med = float(np.median(abs_errs))
+                p95 = float(np.percentile(abs_errs, 95))
+                bias = float(np.median(errs))
+                mc = float(np.mean(confs))
+                pct_g = 100.0 * gated / len(errs)
+                n = len(errs)
+                cells[key][theta] = {
+                    "median_abs_err": med,
+                    "p95_abs_err": p95,
+                    "signed_median": bias,
+                    "mean_conf": mc,
+                    "pct_gated": pct_g,
+                    "n": n,
+                }
+                if med > worst_median:
+                    worst_median = med
+
+            summary[key] = worst_median
+
+    return {"cells": cells, "summary": summary}
 
 
 # ---------------------------------------------------------------------------
@@ -212,10 +277,12 @@ def _load_trial(trial_dir: pathlib.Path, cfg: dict) -> dict[int, dict]:
 # ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Bench table: beta × band sweep")
+    parser = argparse.ArgumentParser(description="Bench table: beta x band sweep")
     parser.add_argument("trial_dirs", nargs="+", type=pathlib.Path)
     parser.add_argument("--config", type=pathlib.Path, default=None,
                         help="Path to site.toml (default: auto-detect)")
+    parser.add_argument("--raw", action="store_true",
+                        help="Skip tau0_s and channel_swap from config")
     args = parser.parse_args(argv)
 
     # Resolve config
@@ -225,87 +292,52 @@ def main(argv: list[str] | None = None) -> None:
     cfg_path = cfg_path.resolve()
 
     cfg, _ = load_config(cfg_path)
-    gate_min_conf = cfg.get("gate_min_confidence", 0.0)
-    fs = 48_000  # always 48 kHz
 
     _print_header(cfg_path)
 
-    # Collect all (true_theta, audio, temp_c) pairs across all trials
-    all_entries: list[dict] = []
-    for trial_dir in args.trial_dirs:
-        trial_dir = pathlib.Path(trial_dir).resolve()
-        nodes = _load_trial(trial_dir, cfg)
-        for nid, data in nodes.items():
-            all_entries.append(data)
+    result = compute_table(
+        [pathlib.Path(d).resolve() for d in args.trial_dirs],
+        cfg,
+        raw=args.raw,
+    )
 
-    if not all_entries:
+    cells = result["cells"]
+    summary = result["summary"]
+
+    if not cells:
         print("No data found.")
         return
 
-    # Unique true_theta values
-    true_thetas = sorted({e["true_theta"] for e in all_entries})
+    true_angles = sorted({theta for angle_dict in cells.values() for theta in angle_dict})
 
-    # For each (beta, band): per-angle statistics
-    # summary_table[beta_idx][band_idx] = worst median over angles
-    summary: list[list[float]] = [[float("nan")] * len(BANDS) for _ in BETAS]
-
-    for bi, beta in enumerate(BETAS):
-        for bj, band in enumerate(BANDS):
+    for beta in BETAS:
+        for band in BANDS:
+            key = (beta, band)
             band_label = f"{band[0]}-{band[1]}"
             print(f"\n--- beta={beta:.2f}  band=[{band_label}] ---")
             print(f"{'true_theta':>12} {'med|err|':>10} {'p95|err|':>10} "
                   f"{'bias':>8} {'mean_conf':>10} {'%gated':>8} {'n':>6}")
-            worst_median = 0.0
-            for theta in true_thetas:
-                entries = [e for e in all_entries if e["true_theta"] == theta]
-                # Combine windows across all trials at this theta
-                cell_errs: list[float] = []
-                cell_confs: list[float] = []
-                cell_gated = 0
-                for entry in entries:
-                    audio = entry["audio"]
-                    temp_c = entry["temp_c"]
-                    for _start, win in iter_windows(audio, fs, cfg["window_s"], cfg["hop_s"]):
-                        left = win[:, 0].astype(np.float64)
-                        right = win[:, 1].astype(np.float64)
-                        res = estimate_bearing(
-                            left, right, fs, cfg["mic_spacing_m"], temp_c,
-                            band_hz=band, tau0_s=0.0, channel_swap=False, beta=beta,
-                        )
-                        err = res["theta_deg"] - theta
-                        err = ((err + 180.0) % 360.0) - 180.0
-                        cell_errs.append(err)
-                        cell_confs.append(res["confidence"])
-                        if res["confidence"] >= gate_min_conf:
-                            cell_gated += 1
-
-                if not cell_errs:
+            angle_dict = cells.get(key, {})
+            for theta in true_angles:
+                st = angle_dict.get(theta)
+                if st is None or st["n"] == 0:
                     continue
-                abs_errs = np.abs(cell_errs)
-                med = float(np.median(abs_errs))
-                p95 = float(np.percentile(abs_errs, 95))
-                bias = float(np.median(cell_errs))
-                mc = float(np.mean(cell_confs))
-                pct_g = 100.0 * cell_gated / len(cell_errs)
-                n = len(cell_errs)
-                print(f"{theta:>12.1f} {med:>10.3f} {p95:>10.3f} "
-                      f"{bias:>8.3f} {mc:>10.4f} {pct_g:>8.1f} {n:>6d}")
-                if med > worst_median:
-                    worst_median = med
-            summary[bi][bj] = worst_median
+                print(f"{theta:>12.1f} {st['median_abs_err']:>10.3f} {st['p95_abs_err']:>10.3f} "
+                      f"{st['signed_median']:>8.3f} {st['mean_conf']:>10.4f} "
+                      f"{st['pct_gated']:>8.1f} {st['n']:>6d}")
 
     # Summary table
     print("\n\n=== SUMMARY: WORST median |err| (deg) over angles ===")
-    print(f"{'beta\\band':>10}", end="")
+    header = f"{'beta\\\\band':>10}"
     for bl in BAND_LABELS:
-        print(f"  {bl:>12}", end="")
-    print()
-    for bi, beta in enumerate(BETAS):
-        print(f"{beta:>10.2f}", end="")
-        for bj in range(len(BANDS)):
-            val = summary[bi][bj]
-            print(f"  {val:>12.3f}", end="")
-        print()
+        header += f"  {bl:>12}"
+    print(header)
+    for beta in BETAS:
+        row = f"{beta:>10.2f}"
+        for band in BANDS:
+            val = summary.get((beta, band), float("nan"))
+            row += f"  {val:>12.3f}"
+        print(row)
     print()
 
 

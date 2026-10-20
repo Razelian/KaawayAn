@@ -1,14 +1,15 @@
 """
-Tests for laptop/scripts/bench_table.py — Slice 4t.
+Tests for laptop/scripts/bench_table.py — Slice 4t (R1 revision).
 
-Tests use synthetic trial folders built with make_stereo from sim.py.
+All behavioural tests call compute_table() directly.
+One CLI smoke test uses subprocess.
 """
 
 from __future__ import annotations
 
-import csv
-import io
+import hashlib
 import json
+import math
 import pathlib
 import subprocess
 import sys
@@ -23,8 +24,14 @@ from kaawayan.sim import make_stereo
 FS = 48_000
 D_M = 0.10
 TEMP_C = 20.0
-N = FS  # 1 s
+DURATION_S = 3.0  # 3 s gives 5 windows with window=1 s, hop=0.5 s
 
+_LAPTOP = pathlib.Path(__file__).parent.parent
+_SCRIPT = _LAPTOP / "scripts" / "bench_table.py"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _make_wav(path: pathlib.Path, stereo: np.ndarray) -> None:
     """Write a stereo int16 WAV file."""
@@ -32,16 +39,7 @@ def _make_wav(path: pathlib.Path, stereo: np.ndarray) -> None:
         wf.setnchannels(2)
         wf.setsampwidth(2)
         wf.setframerate(FS)
-        wf.writeframes(stereo.astype(np.int16).tobytes())
-
-
-def _make_env_csv(path: pathlib.Path, temp_c: float = TEMP_C) -> None:
-    with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["t_laptop_s", "temp_c", "rh_pct",
-                                           "overrun_count", "usb_drop_count", "bme_status"])
-        w.writeheader()
-        w.writerow({"t_laptop_s": 0.0, "temp_c": temp_c, "rh_pct": 50.0,
-                     "overrun_count": 0, "usb_drop_count": 0, "bme_status": 0})
+        wf.writeframes(stereo.tobytes())
 
 
 def _make_meta(path: pathlib.Path, true_theta_by_node: dict) -> None:
@@ -50,14 +48,22 @@ def _make_meta(path: pathlib.Path, true_theta_by_node: dict) -> None:
         "kind": "tone",
         "config_hash": "n/a",
         "git_commit": "n/a",
-        "true_theta_deg": true_theta_by_node,
+        "true_theta_deg": {str(k): float(v) for k, v in true_theta_by_node.items()},
     }
     path.write_text(json.dumps(meta))
 
 
-def _make_site_toml(path: pathlib.Path, mic_spacing_m: float = D_M,
-                     band_hz=None, phat_beta: float = 0.5,
-                     window_s: float = 1.0, hop_s: float = 0.5) -> None:
+def _make_site_toml(
+    path: pathlib.Path,
+    *,
+    mic_spacing_m: float = D_M,
+    band_hz=None,
+    phat_beta: float = 0.25,
+    window_s: float = 1.0,
+    hop_s: float = 0.5,
+    tau0_s: float = 0.0,
+    channel_swap: bool = False,
+) -> None:
     if band_hz is None:
         band_hz = [300, 1500]
     lines = [
@@ -79,97 +85,216 @@ def _make_site_toml(path: pathlib.Path, mic_spacing_m: float = D_M,
         "x_m = 0.0",
         "y_m = 0.0",
         "heading_deg = 90.0",
-        "tau0_s = 0.0",
-        "channel_swap = false",
+        f"tau0_s = {tau0_s}",
+        f"channel_swap = {'true' if channel_swap else 'false'}",
         'mic_model = "INMP441"',
     ]
     path.write_text("\n".join(lines))
 
 
-def _make_trial(trial_dir: pathlib.Path, theta_deg: float,
-                 config_path: pathlib.Path) -> None:
-    """Build a synthetic trial: one node, white noise at theta_deg."""
+def _make_trial(
+    trial_dir: pathlib.Path,
+    theta_deg: float,
+    *,
+    snr_db: float = 30.0,
+    seed: int = 42,
+    tau_offset_samples: float = 0.0,  # extra artificial offset added BEFORE writing
+) -> None:
+    """Build a synthetic trial: one node (node1), white noise at theta_deg.
+
+    Uses 3 s of white noise ~4000 LSB RMS so iter_windows gets 5 windows.
+    """
     trial_dir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(42)
-    mono = rng.standard_normal(N).astype(np.float32)
+    n = int(DURATION_S * FS)
+    rng = np.random.default_rng(seed)
+    # ~4000 LSB RMS
+    mono = rng.standard_normal(n).astype(np.float64) * 4000.0
+
     c = speed_of_sound(TEMP_C)
-    stereo = make_stereo(mono, theta_deg, D_M, c, FS)
+    left, right = make_stereo(mono, FS, theta_deg, D_M, c, snr_db=snr_db, rng=rng)
+
+    # Optionally inject an extra fractional-sample offset (FFT phase shift on right)
+    if tau_offset_samples != 0.0:
+        tau_extra_s = tau_offset_samples / FS
+        freqs = np.fft.rfftfreq(n, d=1.0 / FS)
+        R = np.fft.rfft(right)
+        right = np.fft.irfft(R * np.exp(-1j * 2.0 * np.pi * freqs * tau_extra_s), n=n)
+
+    stereo = np.stack([left, right], axis=1)
+    stereo = np.clip(stereo, -32768, 32767).astype(np.int16)
     _make_wav(trial_dir / "node1.wav", stereo)
-    _make_env_csv(trial_dir / "env.csv", TEMP_C)
-    _make_meta(trial_dir / "meta.json", {"1": theta_deg})
+    _make_meta(trial_dir / "meta.json", {1: theta_deg})
 
 
-_SCRIPT = pathlib.Path(__file__).parent.parent / "scripts" / "bench_table.py"
-_LAPTOP = pathlib.Path(__file__).parent.parent
+def _load_cfg(cfg_path: pathlib.Path) -> dict:
+    from kaawayan.config import load_config
+    cfg, _ = load_config(cfg_path)
+    return cfg
 
 
-def _run_bench(*trial_dirs: pathlib.Path, config: pathlib.Path = None) -> str:
-    """Run bench_table.py and return stdout."""
-    args = [sys.executable, str(_SCRIPT)]
-    if config:
-        args += ["--config", str(config)]
-    args += [str(d) for d in trial_dirs]
-    result = subprocess.run(
-        args,
-        capture_output=True, text=True,
-        env={"PATH": str(pathlib.Path(sys.executable).parent), "PYTHONPATH": str(_LAPTOP)},
-    )
-    return result.stdout + result.stderr
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def two_angle_setup(tmp_path):
+    """Returns (trial_0_dir, trial_30_dir, cfg_path, cfg) for standard tests."""
+    cfg_path = tmp_path / "site.toml"
+    _make_site_toml(cfg_path)
+    t0 = tmp_path / "trial_0"
+    t30 = tmp_path / "trial_30"
+    _make_trial(t0, 0.0)
+    _make_trial(t30, 30.0)
+    cfg = _load_cfg(cfg_path)
+    return t0, t30, cfg_path, cfg
 
 
-class TestBenchTable:
-    def test_all_20_cells_present(self, tmp_path):
-        """5 betas × 4 bands = 20 cells in the summary table."""
-        cfg = tmp_path / "site.toml"
-        _make_site_toml(cfg)
-        t0 = tmp_path / "trial_0"
-        t30 = tmp_path / "trial_30"
-        _make_trial(t0, 0.0, cfg)
-        _make_trial(t30, 30.0, cfg)
-        out = _run_bench(t0, t30, config=cfg)
-        # Count distinct beta-band combinations
-        bands = ["300-1500", "300-1700", "300-4000", "300-6000"]
-        betas = ["0.00", "0.25", "0.50", "0.75", "1.00"]
-        # The output must mention all betas and all bands
-        for b in betas:
-            assert b in out, f"beta {b} missing from output"
-        for band in bands:
-            assert band in out, f"band {band} missing from output"
+# ---------------------------------------------------------------------------
+# Test: all 20 (beta, band) cells present, each with entries for both angles
+# ---------------------------------------------------------------------------
 
-    def test_low_error_best_cell(self, tmp_path):
-        """White noise at 0° and 30°: at least one cell has median |err| < 1 deg."""
-        cfg = tmp_path / "site.toml"
-        _make_site_toml(cfg, band_hz=[300, 1500], phat_beta=0.25)
-        t0 = tmp_path / "trial_0"
-        t30 = tmp_path / "trial_30"
-        _make_trial(t0, 0.0, cfg)
-        _make_trial(t30, 30.0, cfg)
-        out = _run_bench(t0, t30, config=cfg)
-        # At least some line should have a number < 1.0 deg median error
-        import re
-        numbers = [float(m) for m in re.findall(r"\d+\.\d+", out)]
-        assert any(n < 1.0 for n in numbers), (
-            f"No cell with median error < 1 deg; numbers found: {numbers[:20]}"
+class TestComputeTableStructure:
+    def test_all_20_cells_present(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table, BETAS, BANDS
+        result = compute_table([t0, t30], cfg)
+        cells = result["cells"]
+        summary = result["summary"]
+        assert len(cells) == 20, f"Expected 20 cells, got {len(cells)}"
+        assert len(summary) == 20
+        for beta in BETAS:
+            for band in BANDS:
+                key = (beta, band)
+                assert key in cells, f"Missing cell {key}"
+                assert key in summary
+                # Both angles present
+                assert 0.0 in cells[key], f"0.0 missing from {key}"
+                assert 30.0 in cells[key], f"30.0 missing from {key}"
+
+    def test_cell_fields(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table
+        result = compute_table([t0, t30], cfg)
+        st = result["cells"][(0.25, (300, 1500))][0.0]
+        for field in ("median_abs_err", "p95_abs_err", "signed_median",
+                      "mean_conf", "pct_gated", "n"):
+            assert field in st, f"Field {field!r} missing"
+        assert st["n"] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Test: accuracy at (0.25, (300,1500)) for 0 deg and 30 deg
+# ---------------------------------------------------------------------------
+
+class TestAccuracy:
+    def test_median_error_under_1deg_at_0(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table
+        result = compute_table([t0, t30], cfg)
+        med = result["cells"][(0.25, (300, 1500))][0.0]["median_abs_err"]
+        assert med < 1.0, f"Median |err| at 0 deg = {med:.3f} >= 1 deg"
+
+    def test_median_error_under_1deg_at_30(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table
+        result = compute_table([t0, t30], cfg)
+        med = result["cells"][(0.25, (300, 1500))][30.0]["median_abs_err"]
+        assert med < 1.0, f"Median |err| at 30 deg = {med:.3f} >= 1 deg"
+
+    def test_signed_bias_within_1deg_at_30(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table
+        result = compute_table([t0, t30], cfg)
+        bias = result["cells"][(0.25, (300, 1500))][30.0]["signed_median"]
+        assert abs(bias) <= 1.0, f"Bias at 30 deg = {bias:.3f} > 1 deg"
+
+
+# ---------------------------------------------------------------------------
+# Test: calibration (tau0_s correction)
+# ---------------------------------------------------------------------------
+
+class TestCalibration:
+    def test_raw_offset_causes_bias(self, tmp_path):
+        """0.3-sample injected offset → signed bias > 1 deg with --raw."""
+        from laptop.scripts.bench_table import compute_table
+        cfg_path = tmp_path / "site.toml"
+        _make_site_toml(cfg_path, tau0_s=0.0)  # tau0 = 0 in config
+        trial = tmp_path / "trial_offset"
+        _make_trial(trial, 0.0, tau_offset_samples=0.3)
+        cfg = _load_cfg(cfg_path)
+
+        result_raw = compute_table([trial], cfg, raw=True)
+        bias_raw = result_raw["cells"][(0.25, (300, 1500))][0.0]["signed_median"]
+        assert abs(bias_raw) > 1.0, (
+            f"Expected |bias| > 1 deg with raw offset, got {bias_raw:.3f}"
         )
 
-    def test_output_identical_on_second_run(self, tmp_path):
-        """Running twice gives identical output (determinism)."""
-        cfg = tmp_path / "site.toml"
-        _make_site_toml(cfg)
-        t0 = tmp_path / "trial_0"
-        _make_trial(t0, 0.0, cfg)
-        out1 = _run_bench(t0, config=cfg)
-        out2 = _run_bench(t0, config=cfg)
-        assert out1 == out2, "bench_table.py output is not deterministic"
+    def test_tau0_corrects_bias(self, tmp_path):
+        """With tau0_s set, the bias is under 0.5 deg."""
+        from laptop.scripts.bench_table import compute_table
+        # The injected offset is 0.3 samples on the right channel.
+        # tau0_s to correct it: tau0 = +0.3/FS (right delayed = positive tau)
+        tau0_correction = 0.3 / FS
+        cfg_path = tmp_path / "site.toml"
+        _make_site_toml(cfg_path, tau0_s=tau0_correction)
+        trial = tmp_path / "trial_offset"
+        _make_trial(trial, 0.0, tau_offset_samples=0.3)
+        cfg = _load_cfg(cfg_path)
 
-    def test_config_hash_in_output(self, tmp_path):
-        """Output must include a SHA-256 config hash."""
-        cfg = tmp_path / "site.toml"
-        _make_site_toml(cfg)
-        t0 = tmp_path / "trial_0"
-        _make_trial(t0, 0.0, cfg)
-        out = _run_bench(t0, config=cfg)
-        assert "SHA-256" in out or "sha256" in out.lower() or len([
-            line for line in out.splitlines()
-            if len(line.strip()) == 64 and all(c in "0123456789abcdef" for c in line.strip())
-        ]) > 0, "No SHA-256 hash in bench_table output"
+        result = compute_table([trial], cfg, raw=False)
+        bias = result["cells"][(0.25, (300, 1500))][0.0]["signed_median"]
+        assert abs(bias) < 0.5, (
+            f"Expected |bias| < 0.5 deg with tau0 correction, got {bias:.3f}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Test: determinism
+# ---------------------------------------------------------------------------
+
+class TestDeterminism:
+    def test_two_calls_equal(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        from laptop.scripts.bench_table import compute_table
+        r1 = compute_table([t0, t30], cfg)
+        r2 = compute_table([t0, t30], cfg)
+        # Compare summary dicts
+        assert set(r1["summary"].keys()) == set(r2["summary"].keys())
+        for key in r1["summary"]:
+            v1 = r1["summary"][key]
+            v2 = r2["summary"][key]
+            assert math.isnan(v1) == math.isnan(v2)
+            if not math.isnan(v1):
+                assert abs(v1 - v2) < 1e-12
+        # Compare every cell
+        for key in r1["cells"]:
+            for theta in r1["cells"][key]:
+                for field in ("median_abs_err", "signed_median", "n"):
+                    a = r1["cells"][key][theta][field]
+                    b = r2["cells"][key][theta][field]
+                    if isinstance(a, float) and math.isnan(a):
+                        assert math.isnan(b)
+                    else:
+                        assert a == b
+
+
+# ---------------------------------------------------------------------------
+# Test: CLI smoke test — stdout contains the SHA-256 of the config file
+# ---------------------------------------------------------------------------
+
+class TestCLI:
+    def test_stdout_contains_config_sha256(self, two_angle_setup):
+        t0, t30, cfg_path, cfg = two_angle_setup
+        sha = hashlib.sha256(cfg_path.read_bytes()).hexdigest()
+        result = subprocess.run(
+            [sys.executable, str(_SCRIPT),
+             "--config", str(cfg_path),
+             str(t0), str(t30)],
+            capture_output=True,
+            text=True,
+            env={**__import__("os").environ, "PYTHONPATH": str(_LAPTOP)},
+        )
+        assert result.returncode == 0, f"CLI failed:\n{result.stderr}"
+        assert sha in result.stdout, (
+            f"SHA-256 {sha!r} not found in stdout:\n{result.stdout[:500]}"
+        )

@@ -14,14 +14,24 @@ FrameAssembler
 NodeRecorder
     Per-node sink that accepts feed_frame(frame_dict, t_laptop_s).
     Writes:
-      node{id}.wav  — stereo 48 kHz int16 WAV
-      env.csv       — ENV frame rows per CONTEXT §7
-      gaps.log      — AUDIO seq gaps (node, type, seq range, duration ms)
-      meta.json     — trial metadata per CONTEXT §7 (no wall-clock timestamps)
-    An AUDIO seq gap of k frames inserts k*512 zero stereo samples so that
-    sample_index == seq * 512 holds.
-    close(trial_id, kind) -> dict(total_gap_ms, flagged, crc_failures,
-                                   resync_bytes_skipped)
+      node{id}.wav  — stereo 48 kHz int16 WAV (crash-safe: header patched every
+                      100 AUDIO frames and at close)
+      node{id}_env.csv  — ENV frame rows (appended/flushed immediately)
+      gaps.log      — shared via TrialRecorder; NodeRecorder logs to a file
+                      directly so bytes survive a crash
+      meta.json     — written only by TrialRecorder.close()
+    A seq < last_seq means node reboot: RESET logged, resets counter
+    incremented, flagged, stream continues (gap unknown, no zero-fill).
+    A seq == last_seq is a duplicate: skipped, DUP logged.
+    NodeRecorder.close() is still usable stand-alone; it writes its own
+    minimal meta.json in that case.
+
+TrialRecorder
+    Owns one NodeRecorder per node_id.
+    feed_frame(frame, t) routes by frame["node_id"].
+    close(trial_id, kind, cfg_path=None, extra_meta=None, assemblers=None)
+    writes ONE shared meta.json (extra_meta merged verbatim, core keys
+    protected) and one shared gaps.log.
 
 SerialSource
     Wraps a pyserial port; matches list_ports serial_number to config
@@ -60,9 +70,10 @@ log = logging.getLogger(__name__)
 
 _FS = 48_000
 _SAMPLES_PER_AUDIO = 512
+_WAV_PATCH_EVERY = 100  # patch WAV header every N AUDIO frames
 
 # ---------------------------------------------------------------------------
-# Git / config helpers (same pattern as band_diagnostic.py)
+# Git / config helpers
 # ---------------------------------------------------------------------------
 
 def _git_commit() -> str:
@@ -79,7 +90,6 @@ def _git_commit() -> str:
 def _config_hash(cfg_path: pathlib.Path | None = None) -> str:
     """SHA-256 of site.toml, or 'n/a' if not found."""
     if cfg_path is None:
-        # Walk up from this file looking for config/site.toml
         here = pathlib.Path(__file__).resolve().parent
         for candidate in [here / ".." / ".." / "config" / "site.toml",
                           here / ".." / "config" / "site.toml"]:
@@ -94,6 +104,72 @@ def _config_hash(cfg_path: pathlib.Path | None = None) -> str:
         return hashlib.sha256(raw).hexdigest()
     except Exception:
         return "n/a"
+
+
+# ---------------------------------------------------------------------------
+# Minimal WAV writer (crash-safe: patches header on demand)
+# ---------------------------------------------------------------------------
+
+_WAV_HEADER_SIZE = 44  # RIFF/fmt/data header, no extras
+
+
+def _wav_header(n_frames: int, n_channels: int = 2, sample_width: int = 2,
+                framerate: int = _FS) -> bytes:
+    """Build a 44-byte PCM WAV header."""
+    data_size = n_frames * n_channels * sample_width
+    riff_size = 36 + data_size
+    return struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", riff_size, b"WAVE",
+        b"fmt ", 16, 1, n_channels, framerate,
+        framerate * n_channels * sample_width,
+        n_channels * sample_width, sample_width * 8,
+        b"data", data_size,
+    )
+
+
+class _CrashSafeWav:
+    """Minimal WAV writer that patches its own header periodically."""
+
+    def __init__(self, path: pathlib.Path, n_channels: int = 2,
+                 sample_width: int = 2, framerate: int = _FS) -> None:
+        self._path = path
+        self._n_channels = n_channels
+        self._sample_width = sample_width
+        self._framerate = framerate
+        self._n_frames: int = 0
+        self._audio_frame_count: int = 0  # AUDIO frames since last patch
+
+        # Open/create file and write initial header
+        self._fh = open(path, "wb")
+        self._fh.write(_wav_header(0, n_channels, sample_width, framerate))
+        self._fh.flush()
+
+    def write_frames(self, data: bytes) -> None:
+        self._fh.write(data)
+        samples = len(data) // (self._n_channels * self._sample_width)
+        self._n_frames += samples
+        self._audio_frame_count += 1
+        if self._audio_frame_count >= _WAV_PATCH_EVERY:
+            self._patch_header()
+            self._audio_frame_count = 0
+
+    def _patch_header(self) -> None:
+        pos = self._fh.tell()
+        self._fh.seek(0)
+        self._fh.write(_wav_header(self._n_frames, self._n_channels,
+                                   self._sample_width, self._framerate))
+        self._fh.seek(pos)
+        self._fh.flush()
+
+    def close(self) -> None:
+        if not self._fh.closed:
+            self._patch_header()
+            self._fh.close()
+
+    @property
+    def n_frames(self) -> int:
+        return self._n_frames
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +258,7 @@ class FrameAssembler:
 # ---------------------------------------------------------------------------
 
 class NodeRecorder:
-    """Per-node sink that writes WAV + env.csv + gaps.log + meta.json.
+    """Per-node sink that writes WAV + env.csv + (optionally shared) gaps.log.
 
     Parameters
     ----------
@@ -190,34 +266,53 @@ class NodeRecorder:
         Expected node_id for frames fed to this recorder.
     out_dir : pathlib.Path | str
         Directory where output files are written (created if absent).
+    gaps_log_path : pathlib.Path | None
+        If provided, gap/reset/dup lines are appended to this path directly
+        (used by TrialRecorder for a shared gaps.log). Otherwise a per-node
+        gaps.log in out_dir is used.
     """
 
-    def __init__(self, node_id: int, out_dir: pathlib.Path | str) -> None:
+    def __init__(self, node_id: int, out_dir: pathlib.Path | str,
+                 gaps_log_path: pathlib.Path | None = None) -> None:
         self.node_id = node_id
         self._out = pathlib.Path(out_dir)
         self._out.mkdir(parents=True, exist_ok=True)
 
-        # WAV writer (opened on first AUDIO frame)
-        self._wav: wave.Wave_write | None = None
+        # Crash-safe WAV writer (opened on first AUDIO frame)
+        self._wav: _CrashSafeWav | None = None
         self._wav_path = self._out / f"node{node_id}.wav"
 
-        # Gap tracking per (type)
+        # Gap/reset tracking
         self._last_audio_seq: int | None = None
-        self._total_gap_samples: int = 0  # in audio samples (stereo pairs)
+        self._total_gap_samples: int = 0
+        self._resets: int = 0
+        self._flagged: bool = False
 
-        # Seq tracking per type for all types
+        # Seq tracking per type (for all types)
         self._last_seq: dict[FrameType, int] = {}
 
         # STARTUP info
         self.fw_version: str | None = None
         self.mic_flags: int | None = None
 
-        # Gaps log
-        self._gaps_log_path = self._out / "gaps.log"
-        self._gaps_log_lines: list[str] = []
+        # t_first_audio_laptop_s
+        self.t_first_audio_laptop_s: float | None = None
 
-        # ENV CSV
-        self._env_rows: list[dict] = []
+        # n_audio_frames
+        self._n_audio_frames: int = 0
+
+        # Gaps log (shared path or local)
+        if gaps_log_path is not None:
+            self._gaps_log_path = gaps_log_path
+        else:
+            self._gaps_log_path = self._out / "gaps.log"
+
+        # ENV CSV — append+flush immediately (crash-safe)
+        self._env_path = self._out / f"node{node_id}_env.csv"
+        self._env_fh: Any = None
+        self._env_writer: Any = None
+        self._env_fieldnames = ["t_laptop_s", "temp_c", "rh_pct",
+                                 "overrun_count", "usb_drop_count", "bme_status"]
 
         # Counters (set from assembler at close)
         self.crc_failures: int = 0
@@ -230,28 +325,30 @@ class NodeRecorder:
     def _open_wav(self) -> None:
         if self._wav is not None:
             return
-        self._wav = wave.open(str(self._wav_path), "wb")
-        self._wav.setnchannels(2)
-        self._wav.setsampwidth(2)   # int16
-        self._wav.setframerate(_FS)
+        self._wav = _CrashSafeWav(self._wav_path)
 
     def _write_zero_gap(self, n_samples: int) -> None:
         """Write n_samples of zero stereo pairs to WAV."""
         self._open_wav()
         zeros = np.zeros((n_samples, 2), dtype=np.int16)
-        self._wav.writeframes(zeros.tobytes())  # type: ignore[union-attr]
+        self._wav.write_frames(zeros.tobytes())  # type: ignore[union-attr]
 
-    def _write_audio(self, payload: bytes) -> None:
+    def _write_audio_bytes(self, payload: bytes) -> None:
         self._open_wav()
-        self._wav.writeframes(payload)  # type: ignore[union-attr]
+        self._wav.write_frames(payload)  # type: ignore[union-attr]
 
-    def _log_gap(self, frame_type: str, seq_from: int, seq_to: int,
-                  duration_ms: float) -> None:
-        line = (
-            f"node_id={self.node_id} type={frame_type} "
-            f"seq={seq_from}..{seq_to} duration_ms={duration_ms:.2f}"
-        )
-        self._gaps_log_lines.append(line)
+    def _log_gap(self, line: str) -> None:
+        """Append a single line to the gaps log immediately."""
+        with open(self._gaps_log_path, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+
+    def _open_env(self) -> None:
+        if self._env_fh is not None:
+            return
+        self._env_fh = open(self._env_path, "w", newline="", encoding="utf-8")
+        self._env_writer = csv.DictWriter(self._env_fh, fieldnames=self._env_fieldnames)
+        self._env_writer.writeheader()
+        self._env_fh.flush()
 
     # ------------------------------------------------------------------
     # Public API
@@ -262,7 +359,7 @@ class NodeRecorder:
         nid = frame.get("node_id")
         if nid != self.node_id:
             log.warning(
-                "NodeRecorder(%d): received frame from unknown node_id=%s; skipping",
+                "NodeRecorder(%d): received frame from node_id=%s; skipping",
                 self.node_id, nid,
             )
             return
@@ -279,20 +376,43 @@ class NodeRecorder:
 
     def _handle_audio(self, frame: dict, t_laptop_s: float, seq: int) -> None:
         if self._last_audio_seq is None:
-            # First frame seen — defines baseline; no gap before it
+            # First frame — defines baseline; no gap before it
             self._last_audio_seq = seq
+            self.t_first_audio_laptop_s = t_laptop_s
         else:
-            expected_seq = self._last_audio_seq + 1
-            if seq > expected_seq:
-                gap_frames = seq - expected_seq
-                gap_samples = gap_frames * _SAMPLES_PER_AUDIO
-                duration_ms = gap_frames * _SAMPLES_PER_AUDIO / _FS * 1000.0
-                self._write_zero_gap(gap_samples)
-                self._total_gap_samples += gap_samples
-                self._log_gap("AUDIO", expected_seq, seq - 1, duration_ms)
-            self._last_audio_seq = seq
+            if seq < self._last_audio_seq:
+                # Node rebooted
+                self._resets += 1
+                self._flagged = True
+                self._log_gap(
+                    f"node_id={self.node_id} type=AUDIO seq={self._last_audio_seq}->0 "
+                    f"RESET (gap unknown, no zero-fill)"
+                )
+                self._last_audio_seq = seq
+            elif seq == self._last_audio_seq:
+                # Duplicate frame — skip silently with log
+                self._log_gap(
+                    f"node_id={self.node_id} type=AUDIO seq={seq} DUP (skipped)"
+                )
+                return
+            else:
+                expected_seq = self._last_audio_seq + 1
+                if seq > expected_seq:
+                    gap_frames = seq - expected_seq
+                    gap_samples = gap_frames * _SAMPLES_PER_AUDIO
+                    duration_ms = gap_samples / _FS * 1000.0
+                    self._write_zero_gap(gap_samples)
+                    self._total_gap_samples += gap_samples
+                    self._log_gap(
+                        f"node_id={self.node_id} type=AUDIO "
+                        f"seq={expected_seq}..{seq - 1} duration_ms={duration_ms:.2f}"
+                    )
+                    if (self._total_gap_samples / _FS * 1000.0) > 100.0:
+                        self._flagged = True
+                self._last_audio_seq = seq
 
-        self._write_audio(frame["payload"])
+        self._write_audio_bytes(frame["payload"])
+        self._n_audio_frames += 1
 
     def _handle_env(self, frame: dict, t_laptop_s: float) -> None:
         try:
@@ -300,14 +420,17 @@ class NodeRecorder:
         except Exception as exc:
             log.warning("NodeRecorder(%d): bad ENV payload: %s", self.node_id, exc)
             return
-        self._env_rows.append({
+        self._open_env()
+        row = {
             "t_laptop_s": t_laptop_s,
             "temp_c": ep.temp_c_x100 / 100.0,
             "rh_pct": ep.rh_x100 / 100.0,
             "overrun_count": ep.overrun_count,
             "usb_drop_count": ep.usb_drop_count,
             "bme_status": ep.bme_status,
-        })
+        }
+        self._env_writer.writerow(row)
+        self._env_fh.flush()
 
     def _handle_startup(self, frame: dict) -> None:
         try:
@@ -319,67 +442,65 @@ class NodeRecorder:
 
     def close(self, trial_id: str, kind: str,
                cfg_path: pathlib.Path | None = None,
-               assembler: "FrameAssembler | None" = None) -> dict[str, Any]:
+               assembler: "FrameAssembler | None" = None,
+               extra_meta: dict | None = None) -> dict[str, Any]:
         """Finalise all files and return summary dict.
 
-        Parameters
-        ----------
-        trial_id, kind:
-            Stored verbatim in meta.json.
-        cfg_path:
-            Path to site.toml for hashing; auto-detected if None.
-        assembler:
-            If supplied, its crc_failures and resync_bytes_skipped are
-            echoed into the result dict and meta.json.
+        When called stand-alone (not via TrialRecorder), also writes meta.json.
         """
         if assembler is not None:
             self.crc_failures = assembler.crc_failures
             self.resync_bytes_skipped = assembler.resync_bytes_skipped
-        # Close WAV
+
+        # Close WAV (or create empty WAV)
         if self._wav is not None:
             self._wav.close()
             self._wav = None
-        elif not self._wav_path.exists():
-            # Create empty WAV so the file always exists
-            self._open_wav()
-            self._wav.close()  # type: ignore[union-attr]
-            self._wav = None
+        else:
+            # Create empty WAV
+            w = _CrashSafeWav(self._wav_path)
+            w.close()
 
-        # Write gaps.log
-        if self._gaps_log_lines:
-            with open(self._gaps_log_path, "w") as f:
-                for line in self._gaps_log_lines:
-                    f.write(line + "\n")
+        # Close ENV CSV
+        if self._env_fh is not None:
+            self._env_fh.close()
+            self._env_fh = None
+        else:
+            # Write an empty env CSV (header only)
+            with open(self._env_path, "w", newline="", encoding="utf-8") as f:
+                csv.DictWriter(f, fieldnames=self._env_fieldnames).writeheader()
 
-        # Write env.csv
-        env_path = self._out / "env.csv"
-        fieldnames = ["t_laptop_s", "temp_c", "rh_pct", "overrun_count",
-                       "usb_drop_count", "bme_status"]
-        with open(env_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in self._env_rows:
-                writer.writerow(row)
-
-        # Compute summary
         total_gap_ms = self._total_gap_samples / _FS * 1000.0
-        flagged = total_gap_ms > 100.0
+        flagged = self._flagged or (total_gap_ms > 100.0)
 
-        # Write meta.json (no wall-clock timestamps)
-        meta: dict[str, Any] = {
-            "trial_id": trial_id,
-            "kind": kind,
-            "config_hash": _config_hash(cfg_path),
-            "git_commit": _git_commit(),
+        summary = {
             "fw_version": self.fw_version,
             "mic_flags": self.mic_flags,
             "total_gap_ms": total_gap_ms,
             "flagged": flagged,
+            "resets": self._resets,
             "crc_failures": self.crc_failures,
             "resync_bytes_skipped": self.resync_bytes_skipped,
+            "t_first_audio_laptop_s": self.t_first_audio_laptop_s,
+            "n_audio_frames": self._n_audio_frames,
         }
+
+        # Stand-alone use: write a minimal meta.json
         meta_path = self._out / "meta.json"
-        meta_path.write_text(json.dumps(meta, indent=2, sort_keys=True))
+        if not meta_path.exists():
+            _core: dict[str, Any] = {
+                "trial_id": trial_id,
+                "kind": kind,
+                "config_hash": _config_hash(cfg_path),
+                "git_commit": _git_commit(),
+                "flagged": flagged,
+                "nodes": {str(self.node_id): summary},
+            }
+            if extra_meta:
+                for k, v in extra_meta.items():
+                    if k not in _core:
+                        _core[k] = v
+            meta_path.write_text(json.dumps(_core, indent=2, sort_keys=True))
 
         return {
             "total_gap_ms": total_gap_ms,
@@ -387,6 +508,130 @@ class NodeRecorder:
             "crc_failures": self.crc_failures,
             "resync_bytes_skipped": self.resync_bytes_skipped,
         }
+
+    def node_summary(self) -> dict[str, Any]:
+        """Return the per-node summary dict (for TrialRecorder.close)."""
+        total_gap_ms = self._total_gap_samples / _FS * 1000.0
+        return {
+            "fw_version": self.fw_version,
+            "mic_flags": self.mic_flags,
+            "total_gap_ms": total_gap_ms,
+            "flagged": self._flagged or (total_gap_ms > 100.0),
+            "resets": self._resets,
+            "crc_failures": self.crc_failures,
+            "resync_bytes_skipped": self.resync_bytes_skipped,
+            "t_first_audio_laptop_s": self.t_first_audio_laptop_s,
+            "n_audio_frames": self._n_audio_frames,
+        }
+
+
+# ---------------------------------------------------------------------------
+# TrialRecorder
+# ---------------------------------------------------------------------------
+
+class TrialRecorder:
+    """Owns one NodeRecorder per node_id; routes frames by node_id.
+
+    Parameters
+    ----------
+    out_dir : pathlib.Path | str
+        Trial output directory.
+    node_ids : list[int]
+        IDs of the nodes expected in this trial.
+    """
+
+    def __init__(self, out_dir: pathlib.Path | str, node_ids: list[int]) -> None:
+        self._out = pathlib.Path(out_dir)
+        self._out.mkdir(parents=True, exist_ok=True)
+        self._gaps_log_path = self._out / "gaps.log"
+        self._recorders: dict[int, NodeRecorder] = {
+            nid: NodeRecorder(nid, out_dir, gaps_log_path=self._gaps_log_path)
+            for nid in node_ids
+        }
+
+    def feed_frame(self, frame: dict, t_laptop_s: float) -> None:
+        """Route a decoded frame to the appropriate NodeRecorder."""
+        nid = frame.get("node_id")
+        rec = self._recorders.get(nid)
+        if rec is None:
+            log.warning("TrialRecorder: unknown node_id=%s; skipping", nid)
+            return
+        rec.feed_frame(frame, t_laptop_s)
+
+    def close(
+        self,
+        trial_id: str,
+        kind: str,
+        cfg_path: pathlib.Path | None = None,
+        extra_meta: dict | None = None,
+        assemblers: dict[int, "FrameAssembler"] | None = None,
+    ) -> dict[str, Any]:
+        """Close all node recorders and write ONE shared meta.json.
+
+        Parameters
+        ----------
+        extra_meta:
+            Merged verbatim into meta.json; core keys (trial_id, kind,
+            config_hash, git_commit, flagged, nodes) are never overridden.
+        assemblers:
+            Optional {node_id: FrameAssembler} to echo CRC/resync counts.
+        """
+        if assemblers is None:
+            assemblers = {}
+
+        node_summaries: dict[str, Any] = {}
+        any_flagged = False
+
+        for nid, rec in self._recorders.items():
+            asm = assemblers.get(nid)
+            if asm is not None:
+                rec.crc_failures = asm.crc_failures
+                rec.resync_bytes_skipped = asm.resync_bytes_skipped
+
+            # Close WAV + env for each node
+            if rec._wav is not None:
+                rec._wav.close()
+                rec._wav = None
+            else:
+                w = _CrashSafeWav(rec._wav_path)
+                w.close()
+
+            if rec._env_fh is not None:
+                rec._env_fh.close()
+                rec._env_fh = None
+            else:
+                # Create empty env CSV
+                ep = self._out / f"node{nid}_env.csv"
+                if not ep.exists():
+                    with open(ep, "w", newline="", encoding="utf-8") as f:
+                        csv.DictWriter(
+                            f, fieldnames=rec._env_fieldnames
+                        ).writeheader()
+
+            summary = rec.node_summary()
+            if summary["flagged"]:
+                any_flagged = True
+            node_summaries[str(nid)] = summary
+
+        # Build meta.json — core keys cannot be overridden by extra_meta
+        core: dict[str, Any] = {
+            "trial_id": trial_id,
+            "kind": kind,
+            "config_hash": _config_hash(cfg_path),
+            "git_commit": _git_commit(),
+            "flagged": any_flagged,
+            "nodes": node_summaries,
+        }
+
+        if extra_meta:
+            for k, v in extra_meta.items():
+                if k not in core:
+                    core[k] = v
+
+        meta_path = self._out / "meta.json"
+        meta_path.write_text(json.dumps(core, indent=2, sort_keys=True))
+
+        return core
 
 
 # ---------------------------------------------------------------------------
@@ -427,8 +672,11 @@ class SerialSource:
 
         self._serial = serial.Serial(matched_port, baudrate=baudrate, timeout=0.05)
 
-    def read(self, size: int = 256) -> bytes:  # pragma: no cover
-        return self._serial.read(size)
+    def read(self, size: int = 4096) -> bytes:  # pragma: no cover
+        """Read up to size bytes; uses in_waiting for efficiency."""
+        waiting = self._serial.in_waiting
+        n = max(1, min(waiting, 65536))
+        return self._serial.read(n)
 
     @property
     def is_open(self) -> bool:  # pragma: no cover

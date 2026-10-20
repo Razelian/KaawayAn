@@ -29,13 +29,21 @@ The full System Plan is NOT needed unless a task names a requirement ID
 6. Keep answers short: show diffs or new files, no long explanations unless asked.
 7. Every script that produces results must write the config hash and git commit with them.
 8. At the end of a session, append 3 lines to PROGRESS.md: done, next, open problems.
+9. Any metric that feeds a threshold (confidence, ratios, gate values) needs ABSOLUTE tests on
+   known inputs (perfect delay -> about 1, noise only -> near 0), not only relative comparisons.
 
 ## 3. Audio and timing
 - 48 kHz, I2S standard (Philips) mode, 32-bit slots, stereo, ESP32 is master.
 - 24-bit mic data converted to int16 by keeping the top 16 bits of each 32-bit sample.
 - First ~100 ms after I2S start is discarded on the node.
-- Bearing uses both channels at 48 kHz: GCC-PHAT, band-limited (`band_hz`), lag search
-  limited to +/-(d/c) plus a small margin, parabolic sub-sample peak interpolation.
+- Bearing uses both channels at 48 kHz: generalized cross-correlation, spectrum weighted
+  X/|X|^beta (`phat_beta`: 1 = classic PHAT, 0 = plain cross-correlation), band-limited
+  (`band_hz`), lag search limited to +/-(d/c) plus a small margin, parabolic sub-sample peak
+  interpolation. Code default beta = 1.0; site.toml provisional 0.5. Beta and band are chosen
+  TOGETHER from data in slice 4 (sweep beta x band).
+- confidence = corr_peak * n / (2 * sum|G_k|) over the band bins, in [0,1]: 1 for a pure delay,
+  about 0.02 for noise only (n = 48000). peak_median_ratio = peak / median(|corr|) over ALL
+  lags (noise about 1.5, a real peak 5 to 40). Gate thresholds come from data, not by hand.
 - Windows: 1 s with 0.5 s hop (speaker and hover phases); 0.25 to 0.5 s only in the
   flight stretch.
 - Speed of sound: c = 331.3 * sqrt(1 + T/273.15) m/s, T in Celsius from the BME280.
@@ -43,8 +51,13 @@ The full System Plan is NOT needed unless a task names a requirement ID
   receive time (within `pair_tolerance_s`), never by node timestamps.
 - Calibration facts: 1 sample = 20.8 us = 7.15 mm of path = about 4 deg at broadside for
   d = 10 cm, so sub-sample interpolation and the tau0 offset decide accuracy.
-- Known risk: a tonal source above c/(2d) (about 1.7 kHz at 10 cm) causes phase ambiguity.
-  The analysis band is chosen from data (test a capped band vs a wider one up to ~6 kHz).
+- Known risk 1: a tonal source above c/(2d) (about 1.7 kHz at 10 cm) causes phase ambiguity.
+- Known risk 2 (simulated, 2026-10-20): full PHAT fails on tonal/harmonic sources because empty
+  noise bins get the same weight as the tone bins. Harmonic source f0=180 Hz, theta=30, d=10 cm:
+  beta=1 median error 60 deg (band 300-1500) and ~30 deg (300-6000); beta=0.5 0.3 to 3.4 deg;
+  beta=0 0.03 to 0.4 deg (SNR 20 to 0 dB). Table (d) (echo from the same direction in both
+  channels) shows beta barely matters there; real reverberation is untested.
+  Simulation only: real Neo 2 audio decides.
 
 ## 4. Wire protocol (version 1, little-endian, no padding)
 Frame = header (20 bytes) + payload (len bytes) + CRC-32 (4 bytes).
@@ -80,7 +93,8 @@ Ingest rules: scan for sync, reject len > 4096, verify CRC; on failure advance O
 rescan. Identify nodes by USB serial number (never by port name); warn if it disagrees
 with header node_id. Log gaps per node and per type from seq.
 Golden test: `tests/golden/frames.hex` holds known frames that both the C and Python sides
-must parse identically.
+must parse identically. Those frames are made by the Python encoder, so they only prove Python
+agrees with itself; frames dumped from real firmware are added as `tests/golden/frames_fw.hex`.
 
 ## 5. Coordinate and bearing convention (convention_version = 1)
 - World frame: right-handed 2D, metres, origin at a surveyed floor mark. Angles in degrees,
@@ -98,7 +112,7 @@ must parse identically.
 
 ## 6. Config (one TOML file; its SHA-256 is stored with every trial)
 Global: `convention_version`, `mic_spacing_m` (provisional until T3 locks it),
-`band_hz = [lo, hi]`, `window_s`, `hop_s`, `pair_tolerance_s`, `gate_min_confidence`,
+`band_hz = [lo, hi]`, `phat_beta` (0..1, default 1.0), `window_s`, `hop_s`, `pair_tolerance_s`, `gate_min_confidence`,
 `gate_min_band_energy_db`, `min_crossing_deg = 30`.
 Per node (`[[nodes]]`): `node_id`, `usb_serial`, `board` (xiao | devkit), `x_m`, `y_m`,
 `heading_deg`, `tau0_s` (calibration offset), `channel_swap` (bool), `mic_model`.
@@ -111,6 +125,8 @@ Per node (`[[nodes]]`): `node_id`, `usb_serial`, `board` (xiao | devkit), `x_m`,
   peak_median_ratio, gate_ok.
 - `positions.csv`: t_laptop_s, x_m, y_m, crossing_deg, n_nodes, status
   (ok | uncertain | degraded).
+- `env.csv`: t_laptop_s, temp_c, rh_pct, overrun_count, usb_drop_count, bme_status
+  (one row per ENV frame).
 - `gaps.log`: stream gaps from seq and CRC failures; a trial with total gaps over 100 ms is
   flagged.
 Replaying a saved trial must give identical output twice.
@@ -124,6 +140,12 @@ Replaying a saved trial must give identical output twice.
 - Smooth with a rolling median. Test with synthetic bearings and synthetic timestamps,
   including a missing node.
 - Expected error is about 1.4 * R * sigma_theta / sin(gamma), gamma = crossing angle.
+- crossing_deg = largest pairwise acute angle (0..90) between the kept lines. Position =
+  confidence-weighted least squares of perpendicular distances to the lines (works for n >= 2).
+  Any kept line with t < 0 at the solution -> status "uncertain".
+- A stereo pair cannot tell front from back: a source BEHIND a node gives the same tau as its
+  front mirror. Fusion can only expose it through t < 0 or a bad crossing. Tests document this
+  limitation; do not try to fix it inside fusion.
 
 ## 9. Calibration (redo at each site and each session)
 - tau0 per node: clap or tone straight ahead (centerline) should give zero delay; the
@@ -136,6 +158,7 @@ Replaying a saved trial must give identical output twice.
 - T1 bench tone: frequency within 0.5%, no undetected frame loss in 10 min.
 - T2 clap: residual delay <= 0.25 sample; gain mismatch <= 1 dB (diagnostic only).
 - T3 bearing at 1.5 m: median error <= 5 deg within +/-30 deg, <= 8 deg at +/-60 deg.
+  Report an error table by beta x band (slice 4).
 - T4 on the bamboo mast: no more than about 2 deg worse than bare.
 - T7 speaker position: median error <= 0.75 m. T8 Neo 2 hover: <= 1.5 m.
 Report median and 95th percentile, never only the best case.
@@ -150,17 +173,26 @@ forced mode, once per second. PSRAM disabled on both boards.
 kaawayan/
   CONTEXT.md  PROGRESS.md  requirements.txt  config/site.toml
   firmware/          ESP-IDF 5.x, version pinned; one codebase, two boards
-  laptop/kaawayan/   protocol.py config.py bearing.py sim.py fusion.py record.py
-                     calibrate.py evaluate.py live.py
+  laptop/kaawayan/   protocol.py config.py bearing.py sim.py geosim.py fusion.py
+                     record.py calibrate.py evaluate.py live.py windows.py
   laptop/tests/      test_*.py (golden frames in tests/golden/)
   trials/            one folder per trial, as in section 7
+  laptop/scripts/  band_diagnostic.py bench_table.py (offline diagnostics, not tests)
 ```
 
 ## 13. Slices (build order)
-1 protocol.py + config loader + golden frames
-2 bearing.py + sim.py (synthetic delays, sign test)
-3 firmware v0 (counter ramp, then real mics) + record.py (WAV + gap log)
-4 bench spike: clap/tone at 0, +/-30, +/-60 deg, offline bearing error table
-5 calibrate.py (tau0, heading fit)
-6 fusion.py + evaluate.py (T7 speaker position harness)
-7 live.py: one JSON line per fused result (future dashboard hand-off)
+1  protocol.py + config loader + golden frames [done]
+2  bearing.py + sim.py (synthetic delays, sign test) [done]
+2b bearing fix: phat_beta weighting, absolute confidence and peak_median_ratio, harmonic-source
+   tests, diagnostic sweep beta x band [done]
+6a fusion.py (list API, least squares, rejection) + geosim.py (source x,y -> per-node stereo ->
+   bearing -> fused). Pure software, may run in parallel with 3. Cases: 2 nodes, 3 nodes, one
+   node missing, low-confidence node, shallow crossing, behind a node.
+3a record.py (software: WAV + gap log + FrameAssembler + NodeRecorder) — in this batch
+3b firmware v0 (counter ramp, then real mics) — hardware, not in this batch
+   Non-code step before 4: phone recording of the Neo 2 and the speaker (plan 1C/1D).
+4  bench spike (windows.py + bench_table.py): clap/tone/clips at 0, +/-30, +/-60 deg;
+   error table by beta x band; set band_hz, phat_beta and gate thresholds from data
+5  calibrate.py (tau0, heading fit)
+6b pair_windows (laptop receive time) + rolling median + evaluate.py (T7 speaker harness)
+7  live.py: one JSON line per fused result (future dashboard hand-off)

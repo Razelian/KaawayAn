@@ -96,6 +96,13 @@ Golden test: `tests/golden/frames.hex` holds known frames that both the C and Py
 must parse identically. Those frames are made by the Python encoder, so they only prove Python
 agrees with itself; frames dumped from real firmware are added as `tests/golden/frames_fw.hex`.
 
+## 4b. Ramp test mode (firmware v0)
+Audio is synthetic. For a node, let n = seq*512 + i be the global stereo sample index since
+boot (i = 0..511 inside AUDIO frame seq). Then L = int16 wrap of (n mod 65536),
+R = bitwise NOT of L as int16 (R = -L-1). The pair (0,0) can never occur in ramp data, so
+recorder zero-fill (0,0) is distinguishable from data. Ramp mode is announced by mic_flags
+bit 7 (0x80) in STARTUP (bits 0,1 keep their meaning).
+
 ## 5. Coordinate and bearing convention (convention_version = 1)
 - World frame: right-handed 2D, metres, origin at a surveyed floor mark. Angles in degrees,
   counterclockwise from +x.
@@ -119,14 +126,16 @@ Per node (`[[nodes]]`): `node_id`, `usb_serial`, `board` (xiao | devkit), `x_m`,
 
 ## 7. Storage: one folder per trial
 - `node{id}.wav`: stereo, 48 kHz, int16, per node.
-- `meta.json`: trial_id, kind (clap | tone | speaker | hover), true_theta_deg per node or
-  true_xy_m, distance_m, site, config_hash, fw_version per node, git_commit, notes.
-- `bearings.csv`: t_laptop_s, node_id, window_idx, theta_deg, confidence,
+- `node{id}_env.csv`: one per node; columns t_laptop_s, temp_c, rh_pct, overrun_count,
+  usb_drop_count, bme_status (one row per ENV frame).
+- `meta.json`: ONE per trial: trial_id, kind, config_hash, git_commit, flagged, and
+  nodes: {id: {fw_version, mic_flags, total_gap_ms, resets, crc_failures,
+  resync_bytes_skipped, t_first_audio_laptop_s, n_audio_frames}}, plus caller extras
+  (true_theta_deg per node, true_xy_m, distance_m, site, notes).
+- `bearings.csv` columns: t_laptop_s, node_id, window_idx, theta_deg, confidence,
   peak_median_ratio, gate_ok.
 - `positions.csv`: t_laptop_s, x_m, y_m, crossing_deg, n_nodes, status
   (ok | uncertain | degraded).
-- `env.csv`: t_laptop_s, temp_c, rh_pct, overrun_count, usb_drop_count, bme_status
-  (one row per ENV frame).
 - `gaps.log`: stream gaps from seq and CRC failures; a trial with total gaps over 100 ms is
   flagged.
 Replaying a saved trial must give identical output twice.
@@ -188,11 +197,12 @@ kaawayan/
 6a fusion.py (list API, least squares, rejection) + geosim.py (source x,y -> per-node stereo ->
    bearing -> fused). Pure software, may run in parallel with 3. Cases: 2 nodes, 3 nodes, one
    node missing, low-confidence node, shallow crossing, behind a node.
-3a record.py (software: WAV + gap log + FrameAssembler + NodeRecorder) — in this batch
+3a record.py (software: WAV + gap log + FrameAssembler + NodeRecorder) [done]
 3b firmware v0 (counter ramp, then real mics) — hardware, not in this batch
    Non-code step before 4: phone recording of the Neo 2 and the speaker (plan 1C/1D).
-4  bench spike (windows.py + bench_table.py): clap/tone/clips at 0, +/-30, +/-60 deg;
-   error table by beta x band; set band_hz, phat_beta and gate thresholds from data
-5  calibrate.py (tau0, heading fit)
-6b pair_windows (laptop receive time) + rolling median + evaluate.py (T7 speaker harness)
-7  live.py: one JSON line per fused result (future dashboard hand-off)
+4t bench spike (windows.py + bench_table.py): clap/tone/clips at 0, +/-30, +/-60 deg;
+   error table by beta x band; set band_hz, phat_beta and gate thresholds from data [done]
+5  calibrate.py (tau0, heading fit) [done]
+6b pair_windows (laptop receive time) + rolling median + evaluate.py (T7 speaker harness) [done]
+7  live.py: one JSON line per fused result (future dashboard hand-off) [in progress]
+8  capture.py (record CLI + throughput report)

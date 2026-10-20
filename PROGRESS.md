@@ -16,3 +16,9 @@ Open: pair_windows test_input_order_independent uses random.shuffle – seed-ind
 Done: slice 3a – record.py (FrameAssembler: buffers across feed(), advances 1 byte on CRC failure, keeps partial SYNC tail; NodeRecorder: WAV+env.csv+gaps.log+meta.json, zero-fill gaps, flagged when >100ms; SerialSource: pyserial wrapper); 20 new tests; 162 total passed in 8.84s.
 Next: slice 4t – windows.py (iter_windows, band_energy_db) + bench_table.py.
 Open: SerialSource UNTESTED ON HARDWARE; close() assembler kwarg is optional (callers must pass it for CRC counter echo); no wall-clock timestamps in meta.json by design.
+Done: R1 (bench_table fixed), R2 (TrialRecorder, per-node env, reset/dup handling, crash-safe WAV), slice 5 calibrate.py, slice 6b evaluate.py; 216 tests pass
+Next: slice 7 live.py fix + capture.py
+Open: all numbers are simulation-only; SerialSource UNTESTED ON HARDWARE.
+Done: slice 7 live.py (rewrite: absolute sample index timestamps, alive/dead + startup grace, final-group rule, flush, smoother wired, replay_trial interleaved with cfg_path); R4 corrected 3 tests in test_live.py to match startup-grace spec; 239 passed
+Next: R5 slice 8 capture.py
+Open: __main__ runner and reconnect handling (plan L2) UNTESTED / OUT OF SCOPE; startup grace means the first ~2*window_s of a run reports dead_node_ids==[] for a node that is really dead.

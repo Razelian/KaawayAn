@@ -26,8 +26,8 @@ OUT = Path(__file__).parent / "frames.hex"
 
 def make_startup() -> bytes:
     # board_type=1(XIAO), fw 0.1.0, git_short=0xCAFEBABE,
-    # sample_rate=48000, samples_per_ch=512, channels=2, mic_flags=3
-    payload = struct.pack("<BBBBIIHBb", 1, 0, 1, 0, 0xCAFEBABE, 48000, 512, 2, 3)
+    # sample_rate=48000, samples_per_ch=512, channels=2, mic_flags=3 (unsigned B)
+    payload = struct.pack("<BBBBIIHBB", 1, 0, 1, 0, 0xCAFEBABE, 48000, 512, 2, 3)
     return encode_frame(FrameType.STARTUP, node_id=1, seq=0, t_us=0, payload=payload)
 
 

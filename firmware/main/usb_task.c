@@ -2,9 +2,7 @@
 #include "usb_out.h"
 #include "capture.h"
 #include "esp_log.h"
-#if defined(CONFIG_ESP_TASK_WDT)
 #include "esp_task_wdt.h"
-#endif
 
 #define TAG "USB_TASK"
 
@@ -25,16 +23,12 @@ void usb_worker_task(void *pvParameters)
 {
     (void)pvParameters;
 
-#if defined(CONFIG_ESP_TASK_WDT)
-    esp_task_wdt_add(NULL);
-#endif
+    ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
 
     ctrl_frame_t ctrl;
 
     while (1) {
-#if defined(CONFIG_ESP_TASK_WDT)
         esp_task_wdt_reset();
-#endif
 
         /* 1. Prioritize control frames (STARTUP, ENV) */
         if (xQueueReceive(g_ctrl_queue, &ctrl, 0) == pdTRUE) {

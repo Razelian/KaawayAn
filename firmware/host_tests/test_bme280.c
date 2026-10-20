@@ -4,25 +4,34 @@
 #include <assert.h>
 
 /*
- * Test vector based on Bosch Sensortec BME280 datasheet BST-BME280-DS002 Section 4.2.3.
- * Calibration constants:
- *   dig_T1 = 27504, dig_T2 = 26435, dig_T3 = -1000
- *   dig_H1 = 75, dig_H2 = 369, dig_H3 = 0, dig_H4 = 301, dig_H5 = 0, dig_H6 = 30
- * Raw readings:
- *   adc_T = 519888
- *   adc_H = 25600
- *
- * Hand-checked intermediate and expected results:
- *   var1 = 127976, var2 = 446 -> t_fine = 128422
- *   T = (128422 * 5 + 128) >> 8 = 2508  (25.08 deg C)
- *   v_x1_u32r = 152281088 -> h_q22_10 = 37178 (36.31 %RH)
- *   rh_x100 = (37178 * 100 + 512) >> 10 = 3631  (36.31 %RH)
+ * Note on test vectors:
+ * - The TEMPERATURE vector (adc_T=519888 -> 2508) is the Bosch datasheet example (BST-BME280-DS002 Section 4.2.3).
+ * - The HUMIDITY vector (adc_H=25600 -> 3631) is a regression value computed by this code, NOT from Bosch.
  */
 
 int main(void)
 {
-    printf("Running BME280 pure-C compensation host tests...\n");
+    printf("Running BME280 pure-C host tests...\n");
 
+    /* 1. Calibration parsing test (step FX1.4) */
+    const uint8_t raw_t[6] = {0x70, 0x6B, 0x43, 0x67, 0x18, 0xFC};
+    const uint8_t raw_a1 = 75;
+    const uint8_t raw_h[7] = {0x71, 0x01, 0x00, 0xF0, 0x1F, 0x80, 0x1E};
+
+    bme280_calib_t parsed;
+    bme280_parse_calib(raw_t, raw_a1, raw_h, &parsed);
+
+    assert(parsed.dig_T1 == 27504);
+    assert(parsed.dig_T2 == 26435);
+    assert(parsed.dig_T3 == -1000);
+    assert(parsed.dig_H1 == 75);
+    assert(parsed.dig_H2 == 369);
+    assert(parsed.dig_H3 == 0);
+    assert(parsed.dig_H4 == -241);
+    assert(parsed.dig_H5 == -2047);
+    assert(parsed.dig_H6 == 30);
+
+    /* 2. Existing compensation tests */
     bme280_calib_t calib = {
         .dig_T1 = 27504,
         .dig_T2 = 26435,
@@ -41,14 +50,13 @@ int main(void)
     int16_t temp_c_x100 = 0;
     uint16_t rh_x100 = 0;
 
-    /* 1. Standard BME280 test */
     bme280_compensate(adc_T, adc_H, &calib, false, &temp_c_x100, &rh_x100);
     printf("BME280 compensated: temp = %d (25.08 C), rh = %d (36.31 %%)\n",
            temp_c_x100, rh_x100);
     assert(temp_c_x100 == 2508);
     assert(rh_x100 == 3631);
 
-    /* 2. BMP280 fallback test (chip id 0x58): temp valid, rh = 0 */
+    /* 3. BMP280 fallback test (chip id 0x58): temp valid, rh = 0 */
     temp_c_x100 = 0;
     rh_x100 = 9999;
     bme280_compensate(adc_T, adc_H, &calib, true, &temp_c_x100, &rh_x100);
@@ -56,8 +64,7 @@ int main(void)
     assert(temp_c_x100 == 2508);
     assert(rh_x100 == 0);
 
-    /* 3. Range clamping tests */
-    /* Extreme low adc_H */
+    /* 4. Range clamping test */
     bme280_compensate(adc_T, 0, &calib, false, &temp_c_x100, &rh_x100);
     assert(temp_c_x100 == 2508);
     assert(rh_x100 == 0);

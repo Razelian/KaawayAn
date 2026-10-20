@@ -15,6 +15,7 @@ menu "KaawayAn Firmware Configuration"
 
     config KAAWAYAN_NODE_ID
         int "Node ID"
+        range 1 65535
         default 1
         help
             Unique ID for this acoustic node (1 or 2).

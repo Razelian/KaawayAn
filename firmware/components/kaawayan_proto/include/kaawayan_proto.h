@@ -8,6 +8,9 @@
 extern "C" {
 #endif
 
+#define KP_STARTUP_PAYLOAD_LEN 16u
+#define KP_ENV_PAYLOAD_LEN     13u
+
 /* -----------------------------------------------------------------------
  * CRC-32 (IEEE 802.3, same as Python zlib.crc32)
  * Test vector: kp_crc32("123456789", 9) == 0xCBF43926
@@ -25,8 +28,8 @@ size_t kp_frame_encode(uint8_t type, uint16_t node_id, uint32_t seq,
 
 /* -----------------------------------------------------------------------
  * Payload builders – caller provides correctly-sized buffer:
- *   STARTUP : 16 bytes  (<BBBBIIHBB>)
- *   ENV     : 13 bytes  (<hHIIB>)
+ *   STARTUP : KP_STARTUP_PAYLOAD_LEN bytes (16 B, <BBBBIIHBB>)
+ *   ENV     : KP_ENV_PAYLOAD_LEN bytes     (13 B, <hHIIB>)
  * ----------------------------------------------------------------------- */
 void kp_startup_payload(uint8_t board_type, uint8_t fw_major, uint8_t fw_minor,
                         uint8_t fw_patch, uint32_t git_short,

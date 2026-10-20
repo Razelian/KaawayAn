@@ -6,9 +6,7 @@
 #include "esp_log.h"
 #include "driver/i2s_std.h"
 #include "driver/gpio.h"
-#if defined(CONFIG_ESP_TASK_WDT)
 #include "esp_task_wdt.h"
-#endif
 
 #define TAG "CAPTURE"
 
@@ -88,14 +86,17 @@ void capture_init(void)
 
     /* Discard the first 10 frames (~107 ms, F11) */
     for (int i = 0; i < 10; i++) {
-        i2s_channel_read(s_rx_handle, raw_slots, sizeof(raw_slots), &bytes_read, pdMS_TO_TICKS(100));
+        if (s_rx_handle != NULL) {
+            i2s_channel_read(s_rx_handle, raw_slots, sizeof(raw_slots), &bytes_read, pdMS_TO_TICKS(100));
+        }
     }
 
     /* Mic health check at boot (F7): evaluate ~50 ms (5 frames) of raw I2S data */
     int32_t min_l = 0x7FFFFFFF, max_l = (int32_t)0x80000000;
     int32_t min_r = 0x7FFFFFFF, max_r = (int32_t)0x80000000;
     for (int f = 0; f < 5; f++) {
-        if (i2s_channel_read(s_rx_handle, raw_slots, sizeof(raw_slots), &bytes_read, pdMS_TO_TICKS(100)) == ESP_OK) {
+        if (s_rx_handle != NULL &&
+            i2s_channel_read(s_rx_handle, raw_slots, sizeof(raw_slots), &bytes_read, pdMS_TO_TICKS(100)) == ESP_OK) {
             for (int i = 0; i < KAAWAYAN_SAMPLES_PER_CH; i++) {
                 int32_t sl = raw_slots[2 * i];
                 int32_t sr = raw_slots[2 * i + 1];
@@ -115,7 +116,7 @@ void capture_init(void)
         flags |= 0x02; /* Bit 1: M2 alive */
     }
 
-#if defined(CONFIG_KAAWAYAN_RAMP_MODE) || defined(RAMP_MODE)
+#if defined(CONFIG_KAAWAYAN_RAMP_MODE)
     flags |= 0x80; /* Bit 7: ramp mode active */
 #endif
 
@@ -126,9 +127,7 @@ void capture_task(void *pvParameters)
 {
     (void)pvParameters;
 
-#if defined(CONFIG_ESP_TASK_WDT)
-    esp_task_wdt_add(NULL);
-#endif
+    ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
 
     /* DMA buffer for 512 stereo samples in 32-bit slots (4096 bytes) */
     static int32_t raw_slots[KAAWAYAN_SAMPLES_PER_CH * 2];
@@ -140,9 +139,16 @@ void capture_task(void *pvParameters)
     int consecutive_i2s_errors = 0;
 
     while (1) {
-#if defined(CONFIG_ESP_TASK_WDT)
         esp_task_wdt_reset();
-#endif
+
+        /* Guard against NULL handle if initialization failed or disconnected */
+        if (s_rx_handle == NULL) {
+            g_overrun_count++;
+            s_audio_seq++;
+            vTaskDelay(pdMS_TO_TICKS(100));
+            init_i2s_channel();
+            continue;
+        }
 
         size_t bytes_read = 0;
         esp_err_t err = i2s_channel_read(s_rx_handle, raw_slots, sizeof(raw_slots),
@@ -155,8 +161,11 @@ void capture_task(void *pvParameters)
 
             if (consecutive_i2s_errors >= 3) {
                 ESP_LOGW(TAG, "I2S read failed 3x in a row, reinstalling channel...");
-                init_i2s_channel();
+                esp_err_t reinit_err = init_i2s_channel();
                 consecutive_i2s_errors = 0;
+                if (reinit_err != ESP_OK) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
             }
             continue;
         }
@@ -169,7 +178,7 @@ void capture_task(void *pvParameters)
             audio_payload[2 * i + 1] = (int16_t)(raw_slots[2 * i + 1] >> 16);
         }
 
-#if defined(CONFIG_KAAWAYAN_RAMP_MODE) || defined(RAMP_MODE)
+#if defined(CONFIG_KAAWAYAN_RAMP_MODE)
         /* Overwrite with deterministic counter ramp */
         kp_ramp_fill(s_audio_seq, audio_payload);
 #endif

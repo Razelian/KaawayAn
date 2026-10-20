@@ -1,4 +1,26 @@
+#include <stddef.h>
 #include "bme280.h"
+
+/* -------------------------------------------------------------------------
+ * Calibration parser (pure C, host-testable)
+ * ------------------------------------------------------------------------- */
+void bme280_parse_calib(const uint8_t t[6], uint8_t a1, const uint8_t h[7], bme280_calib_t *c)
+{
+    if (c == NULL) return;
+    if (t != NULL) {
+        c->dig_T1 = (uint16_t)((uint16_t)t[0] | ((uint16_t)t[1] << 8));
+        c->dig_T2 = (int16_t)((uint16_t)t[2] | ((uint16_t)t[3] << 8));
+        c->dig_T3 = (int16_t)((uint16_t)t[4] | ((uint16_t)t[5] << 8));
+    }
+    c->dig_H1 = a1;
+    if (h != NULL) {
+        c->dig_H2 = (int16_t)((uint16_t)h[0] | ((uint16_t)h[1] << 8));
+        c->dig_H3 = h[2];
+        c->dig_H4 = (int16_t)(((int16_t)(int8_t)h[3] << 4) | (h[4] & 0x0F));
+        c->dig_H5 = (int16_t)(((int16_t)(int8_t)h[5] << 4) | (h[4] >> 4));
+        c->dig_H6 = (int8_t)h[6];
+    }
+}
 
 /* -------------------------------------------------------------------------
  * Pure-C Bosch integer compensation (BST-BME280-DS002 Section 4.2.3)
@@ -124,27 +146,19 @@ void bme280_init(int sda_pin, int scl_pin)
         s_status = 3;
         return;
     }
-    s_calib.dig_T1 = (uint16_t)(cal_t[0] | (cal_t[1] << 8));
-    s_calib.dig_T2 = (int16_t)(cal_t[2] | (cal_t[3] << 8));
-    s_calib.dig_T3 = (int16_t)(cal_t[4] | (cal_t[5] << 8));
 
+    uint8_t h1 = 0;
+    uint8_t cal_h[7] = {0};
     if (!s_is_bmp280) {
         /* Read humidity calibration parameters: 0xA1, 0xE1..0xE7 */
-        uint8_t h1 = 0;
-        uint8_t cal_h[7];
         if (i2c_read_reg(0xA1, &h1, 1) != ESP_OK ||
             i2c_read_reg(0xE1, cal_h, 7) != ESP_OK) {
             s_status = 3;
             return;
         }
-        s_calib.dig_H1 = h1;
-        s_calib.dig_H2 = (int16_t)(cal_h[0] | (cal_h[1] << 8));
-        s_calib.dig_H3 = cal_h[2];
-        s_calib.dig_H4 = (int16_t)((cal_h[3] << 4) | (cal_h[4] & 0x0F));
-        s_calib.dig_H5 = (int16_t)((cal_h[5] << 4) | (cal_h[4] >> 4));
-        s_calib.dig_H6 = (int8_t)cal_h[6];
     }
 
+    bme280_parse_calib(cal_t, h1, s_is_bmp280 ? NULL : cal_h, &s_calib);
     s_initialized = true;
 }
 
@@ -161,12 +175,12 @@ void bme280_read(int16_t *temp_c_x100, uint16_t *rh_x100, uint8_t *bme_status)
 
     /* 1. Trigger forced mode measurement:
      *    ctrl_hum (0xF2) = 0x01 (osrs_h = x1)
-     *    ctrl_meas (0xF4) = 0x25 (osrs_t = x1, osrs_p = 0, mode = 01 forced)
+     *    ctrl_meas (0xF4) = 0x21 (osrs_t = x1, osrs_p = 0, mode = 01 forced)
      */
     if (!s_is_bmp280) {
         i2c_write_reg(0xF2, 0x01);
     }
-    if (i2c_write_reg(0xF4, 0x21) != ESP_OK) { /* 0x21: osrs_t=x1, osrs_p=skip, forced mode */
+    if (i2c_write_reg(0xF4, 0x21) != ESP_OK) {
         *bme_status = 3;
         return;
     }

@@ -3,9 +3,7 @@
 #include "usb_task.h"
 #include "health.h"
 #include "esp_log.h"
-#if defined(CONFIG_ESP_TASK_WDT)
 #include "esp_task_wdt.h"
-#endif
 
 #define TAG "MAIN"
 
@@ -15,14 +13,16 @@ void app_main(void)
              KAAWAYAN_NODE_ID, KAAWAYAN_BOARD_TYPE,
              KAAWAYAN_FW_MAJOR, KAAWAYAN_FW_MINOR, KAAWAYAN_FW_PATCH);
 
-#if defined(CONFIG_ESP_TASK_WDT)
-    esp_task_wdt_config_t twdt_config = {
+    esp_task_wdt_config_t twdt = {
         .timeout_ms = 3000,
         .idle_core_mask = 0,
         .trigger_panic = true,
     };
-    esp_task_wdt_init(&twdt_config);
-#endif
+    esp_err_t w = esp_task_wdt_init(&twdt);
+    if (w == ESP_ERR_INVALID_STATE) {
+        w = esp_task_wdt_reconfigure(&twdt);
+    }
+    ESP_ERROR_CHECK(w);
 
     /* 1. Initialize USB output and control queue */
     usb_task_init();

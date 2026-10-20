@@ -33,27 +33,21 @@ int main(void)
 {
     printf("Running protocol core host tests...\n");
 
-    /* 1. CRC vector */
+    /* 1. CRC test vector */
     const char *vector = "123456789";
     uint32_t crc = kp_crc32((const uint8_t *)vector, 9);
     printf("CRC vector result: 0x%08X (expected 0xCBF43926)\n", crc);
     assert(crc == 0xCBF43926u);
 
-    /* 2. Payload buffer test / sizes */
-    uint8_t startup_buf[16];
-    kp_startup_payload(1, 1, 0, 0, 0x12345678, 48000, 512, 2, 0x80, startup_buf);
-    assert(startup_buf[0] == 1); /* board_type */
-    assert(startup_buf[1] == 1); /* fw_major */
-    assert(startup_buf[15] == 0x80); /* mic_flags */
+    /* 2. Negative temperature ENV payload test (step FX1.5d) */
+    uint8_t neg_env[KP_ENV_PAYLOAD_LEN];
+    kp_env_payload(-1234, 6543, 7, 9, 2, neg_env);
+    const uint8_t expected_neg[KP_ENV_PAYLOAD_LEN] = {
+        0x2E, 0xFB, 0x8F, 0x19, 0x07, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x02
+    };
+    assert(memcmp(neg_env, expected_neg, KP_ENV_PAYLOAD_LEN) == 0);
 
-    uint8_t env_buf[13];
-    kp_env_payload(2550, 6000, 10, 2, 0, env_buf);
-    /* temp 25.50 C = 2550 = 0x09F6 */
-    assert(env_buf[0] == (2550 & 0xFF));
-    assert(env_buf[1] == (2550 >> 8));
-    assert(env_buf[12] == 0); /* bme_status */
-
-    /* 3. Ramp test */
+    /* 3. Ramp test (basic, wrap, non-zero, and sequence limit) */
     int16_t stereo[1024];
     kp_ramp_fill(0, stereo);
     assert(stereo[0] == 0);
@@ -75,6 +69,14 @@ int main(void)
             assert(!(l == 0 && r == 0));
         }
     }
+
+    /* Ramp at the sequence limit (step FX1.5e) */
+    int16_t ramp_lim[1024];
+    kp_ramp_fill(0xFFFFFFFFu, ramp_lim);
+    assert(ramp_lim[0] == -512);
+    assert(ramp_lim[1] == 511);
+    assert(ramp_lim[1022] == -1);
+    assert(ramp_lim[1023] == 0);
 
     /* 4. Encode with len 4097 fails */
     uint8_t big_payload[4097];
@@ -108,16 +110,60 @@ int main(void)
         assert(raw_len >= 24);
 
         uint8_t type = raw[3];
-        uint16_t node_id = (uint16_t)(raw[4] | (raw[5] << 8));
-        uint32_t seq = (uint32_t)(raw[6] | (raw[7] << 8) | (raw[8] << 16) | (raw[9] << 24));
+        uint16_t node_id = (uint16_t)((uint16_t)raw[4] | ((uint16_t)raw[5] << 8));
+        uint32_t seq = (uint32_t)raw[6] |
+                       ((uint32_t)raw[7] << 8) |
+                       ((uint32_t)raw[8] << 16) |
+                       ((uint32_t)raw[9] << 24);
         uint64_t t_us = 0;
         for (int b = 0; b < 8; b++) {
             t_us |= ((uint64_t)raw[10 + b]) << (8 * b);
         }
-        uint16_t payload_len = (uint16_t)(raw[18] | (raw[19] << 8));
+        uint16_t payload_len = (uint16_t)((uint16_t)raw[18] | ((uint16_t)raw[19] << 8));
         assert(raw_len == (size_t)(20u + payload_len + 4u));
 
         const uint8_t *payload = raw + 20;
+
+        /* Verify payload builders for STARTUP and ENV golden lines (step FX1.5c) */
+        if (type == 1) { /* STARTUP */
+            assert(payload_len == KP_STARTUP_PAYLOAD_LEN);
+            uint8_t b_type = payload[0];
+            uint8_t maj = payload[1];
+            uint8_t min = payload[2];
+            uint8_t pat = payload[3];
+            uint32_t git = (uint32_t)payload[4] |
+                           ((uint32_t)payload[5] << 8) |
+                           ((uint32_t)payload[6] << 16) |
+                           ((uint32_t)payload[7] << 24);
+            uint32_t rate = (uint32_t)payload[8] |
+                            ((uint32_t)payload[9] << 8) |
+                            ((uint32_t)payload[10] << 16) |
+                            ((uint32_t)payload[11] << 24);
+            uint16_t spc = (uint16_t)((uint16_t)payload[12] | ((uint16_t)payload[13] << 8));
+            uint8_t ch = payload[14];
+            uint8_t mf = payload[15];
+
+            uint8_t rebuilt[KP_STARTUP_PAYLOAD_LEN];
+            kp_startup_payload(b_type, maj, min, pat, git, rate, spc, ch, mf, rebuilt);
+            assert(memcmp(payload, rebuilt, KP_STARTUP_PAYLOAD_LEN) == 0);
+        } else if (type == 3) { /* ENV */
+            assert(payload_len == KP_ENV_PAYLOAD_LEN);
+            int16_t t_c = (int16_t)((uint16_t)payload[0] | ((uint16_t)payload[1] << 8));
+            uint16_t rh = (uint16_t)((uint16_t)payload[2] | ((uint16_t)payload[3] << 8));
+            uint32_t overrun = (uint32_t)payload[4] |
+                               ((uint32_t)payload[5] << 8) |
+                               ((uint32_t)payload[6] << 16) |
+                               ((uint32_t)payload[7] << 24);
+            uint32_t drops = (uint32_t)payload[8] |
+                             ((uint32_t)payload[9] << 8) |
+                             ((uint32_t)payload[10] << 16) |
+                             ((uint32_t)payload[11] << 24);
+            uint8_t status = payload[12];
+
+            uint8_t rebuilt[KP_ENV_PAYLOAD_LEN];
+            kp_env_payload(t_c, rh, overrun, drops, status, rebuilt);
+            assert(memcmp(payload, rebuilt, KP_ENV_PAYLOAD_LEN) == 0);
+        }
 
         uint8_t reencoded[8192];
         size_t re_len = kp_frame_encode(type, node_id, seq, t_us, payload, payload_len, reencoded, sizeof(reencoded));

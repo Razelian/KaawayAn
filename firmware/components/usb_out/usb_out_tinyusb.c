@@ -9,12 +9,21 @@
 #include "tusb_cdc_acm.h"
 #include "esp_mac.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #define TAG "USB_TINYUSB"
 
 static char s_serial_str[13];
+static char s_lang[] = {0x09, 0x04};
+static const char *s_strings[] = {
+    s_lang,
+    "KaawayAn",
+    "KaawayAn Node",
+    s_serial_str,
+    "KaawayAn CDC",
+};
 
 void usb_out_init(void)
 {
@@ -26,18 +35,10 @@ void usb_out_init(void)
 
     ESP_LOGI(TAG, "Initializing TinyUSB CDC with unique eFuse MAC serial: %s", s_serial_str);
 
-    const char *string_descriptors[] = {
-        (char[]){0x09, 0x04}, /* 0: Supported language 0x0409 English */
-        "KaawayAn",           /* 1: Manufacturer */
-        "KaawayAn Node",      /* 2: Product */
-        s_serial_str,         /* 3: Serial Number (Unique per eFuse MAC) */
-        "KaawayAn CDC",       /* 4: CDC Interface */
-    };
-
     const tinyusb_config_t tusb_cfg = {
         .device_descriptor = NULL,
-        .string_descriptor = string_descriptors,
-        .string_descriptor_count = sizeof(string_descriptors) / sizeof(string_descriptors[0]),
+        .string_descriptor = s_strings,
+        .string_descriptor_count = sizeof(s_strings) / sizeof(s_strings[0]),
         .external_phy = false,
         .configuration_descriptor = NULL,
     };
@@ -68,19 +69,26 @@ size_t usb_out_write(const uint8_t *p, size_t n, uint32_t timeout_ms)
         return 0;
     }
 
-    /* Queue whole packet into TinyUSB buffer */
-    size_t queued = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, p, n);
-    if (queued < n) {
-        /* Buffer full or overflow */
-        return queued;
+    int64_t deadline = esp_timer_get_time() + ((int64_t)timeout_ms * 1000LL);
+    size_t sent = 0;
+
+    while (sent < n) {
+        size_t q = tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, p + sent, n - sent);
+        sent += q;
+        if (sent >= n) {
+            break;
+        }
+        if (esp_timer_get_time() >= deadline) {
+            break;
+        }
+        tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, pdMS_TO_TICKS(2)); /* ticks, not ms */
     }
 
-    esp_err_t err = tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, timeout_ms);
-    if (err != ESP_OK) {
-        return 0;
+    if (sent > 0) {
+        tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, pdMS_TO_TICKS(2));
     }
 
-    return queued;
+    return sent;
 }
 
 #endif /* CONFIG_KAAWAYAN_USB_BACKEND_TINYUSB */

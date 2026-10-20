@@ -26,20 +26,14 @@
 #define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_DEVKIT
 #elif defined(CONFIG_KAAWAYAN_BOARD_XIAO)
 #define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_XIAO
-#elif defined(BOARD_DEVKIT)
-#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_DEVKIT
 #else
-#define KAAWAYAN_BOARD_TYPE KAAWAYAN_BOARD_TYPE_XIAO
+#error "No board selected: CONFIG_KAAWAYAN_BOARD_* is undefined. Kconfig.projbuild must be in firmware/main/ and sdkconfig must be regenerated."
 #endif
 
-/* Node ID: node 1 (XIAO) or node 2 (devkit) */
-#ifdef CONFIG_KAAWAYAN_NODE_ID
-#define KAAWAYAN_NODE_ID ((uint16_t)CONFIG_KAAWAYAN_NODE_ID)
-#elif defined(NODE_ID)
-#define KAAWAYAN_NODE_ID ((uint16_t)NODE_ID)
-#else
-#define KAAWAYAN_NODE_ID ((uint16_t)1)
+#ifndef CONFIG_KAAWAYAN_NODE_ID
+#error "CONFIG_KAAWAYAN_NODE_ID is undefined (see Kconfig.projbuild in firmware/main/)."
 #endif
+#define KAAWAYAN_NODE_ID ((uint16_t)CONFIG_KAAWAYAN_NODE_ID)
 
 /* Pin definitions (both boards per CONTEXT §11) */
 #define KAAWAYAN_PIN_I2S_BCLK 7

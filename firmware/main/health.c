@@ -7,9 +7,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#if defined(CONFIG_ESP_TASK_WDT)
 #include "esp_task_wdt.h"
-#endif
 
 #if __has_include("bme280.h")
 #include "bme280.h"
@@ -26,7 +24,7 @@ static uint32_t s_env_seq = 0;
 static void send_startup_frame(void)
 {
     ctrl_frame_t frame;
-    uint8_t payload[16];
+    uint8_t payload[KP_STARTUP_PAYLOAD_LEN];
 
     kp_startup_payload(KAAWAYAN_BOARD_TYPE,
                        KAAWAYAN_FW_MAJOR,
@@ -41,7 +39,7 @@ static void send_startup_frame(void)
 
     uint64_t t_us = (uint64_t)esp_timer_get_time();
     size_t sz = kp_frame_encode(1, KAAWAYAN_NODE_ID, s_startup_seq++, t_us,
-                                payload, sizeof(payload), frame.data, sizeof(frame.data));
+                                payload, KP_STARTUP_PAYLOAD_LEN, frame.data, sizeof(frame.data));
     frame.len = sz;
     if (sz > 0 && g_ctrl_queue != NULL) {
         xQueueSend(g_ctrl_queue, &frame, 0);
@@ -51,7 +49,7 @@ static void send_startup_frame(void)
 static void send_env_frame(void)
 {
     ctrl_frame_t frame;
-    uint8_t payload[13];
+    uint8_t payload[KP_ENV_PAYLOAD_LEN];
 
     int16_t temp_c_x100 = 0;
     uint16_t rh_x100 = 0;
@@ -65,7 +63,7 @@ static void send_env_frame(void)
 
     uint64_t t_us = (uint64_t)esp_timer_get_time();
     size_t sz = kp_frame_encode(3, KAAWAYAN_NODE_ID, s_env_seq++, t_us,
-                                payload, sizeof(payload), frame.data, sizeof(frame.data));
+                                payload, KP_ENV_PAYLOAD_LEN, frame.data, sizeof(frame.data));
     frame.len = sz;
     if (sz > 0 && g_ctrl_queue != NULL) {
         xQueueSend(g_ctrl_queue, &frame, 0);
@@ -86,9 +84,7 @@ void health_task(void *pvParameters)
 {
     (void)pvParameters;
 
-#if defined(CONFIG_ESP_TASK_WDT)
-    esp_task_wdt_add(NULL);
-#endif
+    ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
 
     uint32_t ticks_sec = 0;
 
@@ -96,9 +92,7 @@ void health_task(void *pvParameters)
         vTaskDelay(pdMS_TO_TICKS(1000));
         ticks_sec++;
 
-#if defined(CONFIG_ESP_TASK_WDT)
         esp_task_wdt_reset();
-#endif
 
         /* Emit ENV frame every 1 second */
         send_env_frame();

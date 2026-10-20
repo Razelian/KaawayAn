@@ -1,6 +1,7 @@
 #ifndef BME280_H
 #define BME280_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -22,6 +23,16 @@ typedef struct {
 } bme280_calib_t;
 
 /**
+ * @brief Parse raw calibration registers into bme280_calib_t structure.
+ * 
+ * @param t Raw bytes 0x88..0x8D (temperature calibration).
+ * @param a1 Raw byte 0xA1 (dig_H1).
+ * @param h Raw bytes 0xE1..0xE7 (humidity calibration, h[0] is 0xE1). Can be NULL for BMP280.
+ * @param c Output calibration structure.
+ */
+void bme280_parse_calib(const uint8_t t[6], uint8_t a1, const uint8_t h[7], bme280_calib_t *c);
+
+/**
  * @brief Bosch integer compensation for BME280 / BMP280. Pure C, host-testable.
  *
  * @param adc_T Raw 20-bit temperature reading.
@@ -35,20 +46,7 @@ void bme280_compensate(int32_t adc_T, int32_t adc_H, const bme280_calib_t *calib
                        bool is_bmp280, int16_t *temp_c_x100, uint16_t *rh_x100);
 
 #ifndef BME280_HOST_TEST
-/**
- * @brief Initialize I2C bus and probe BME280 at address 0x76.
- */
 void bme280_init(int sda_pin, int scl_pin);
-
-/**
- * @brief Trigger forced mode measurement, read sensor, and compensate values.
- *
- * bme_status codes per CONTEXT §4:
- *   0: OK
- *   1: No response from BME280 (I2C NACK / missing sensor)
- *   2: Chip ID is not 0x60 (0x58 BMP280: temp valid, rh = 0; or unrecognized ID)
- *   3: Read error or timeout
- */
 void bme280_read(int16_t *temp_c_x100, uint16_t *rh_x100, uint8_t *bme_status);
 #endif
 

@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -O2 -I../components/kaawayan_proto/include -I../components/bme280/include
+CFLAGS ?= -Wall -Wextra -Werror -g -O2 -I../components/kaawayan_proto/include -I../components/bme280/include
 
 all: test
 

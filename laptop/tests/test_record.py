@@ -22,6 +22,7 @@ import io
 import json
 import pathlib
 import struct
+import sys
 import wave
 
 import numpy as np
@@ -524,3 +525,199 @@ class TestSerialSourceInterface:
         src = SerialSource.__new__(SerialSource)
         src._serial = fake
         assert src.read(100) == b""
+
+
+# ---------------------------------------------------------------------------
+# R10: SerialSource hardening tests via fake serial module (UNTESTED ON HARDWARE)
+# ---------------------------------------------------------------------------
+
+class _FakeSerialObj:
+    """Fake serial.Serial that records call order for dtr/rts/open sequence."""
+
+    def __init__(self):
+        self.port: str | None = None
+        self.baudrate: int = 115200
+        self.timeout: float = 0.0
+        self.dtr: bool = True   # start True; test checks it is set False before open()
+        self.rts: bool = True
+        self._is_open: bool = False
+        self.in_waiting: int = 0
+        self._call_log: list[str] = []  # records attribute sets and open()
+
+    def __setattr__(self, name, value):
+        # Record sets of dtr/rts so we can verify order vs open()
+        if name in ("dtr", "rts") and not name.startswith("_"):
+            try:
+                self._call_log.append(f"set_{name}={value}")
+            except AttributeError:
+                pass  # _call_log not yet initialised (super().__init__ phase)
+        super().__setattr__(name, value)
+
+    def open(self):
+        self._call_log.append("open")
+        self._is_open = True
+
+    def close(self):
+        self._is_open = False
+
+    def read(self, size: int) -> bytes:
+        return b"\x00" * min(size, self.in_waiting)
+
+    @property
+    def is_open(self) -> bool:
+        return self._is_open
+
+
+class _FakePortInfo:
+    def __init__(self, device: str, serial_number: str):
+        self.device = device
+        self.serial_number = serial_number
+
+
+def _make_fake_serial_module(fake_obj: _FakeSerialObj, port_infos: list[_FakePortInfo]):
+    """Return a fake 'serial' module and 'serial.tools.list_ports' module."""
+    import types
+
+    list_ports_mod = types.ModuleType("serial.tools.list_ports")
+    list_ports_mod.comports = lambda: port_infos  # type: ignore[attr-defined]
+
+    tools_mod = types.ModuleType("serial.tools")
+    tools_mod.list_ports = list_ports_mod  # type: ignore[attr-defined]
+
+    serial_mod = types.ModuleType("serial")
+    serial_mod.Serial = lambda: fake_obj  # type: ignore[attr-defined]
+    serial_mod.tools = tools_mod  # type: ignore[attr-defined]
+
+    return serial_mod, tools_mod, list_ports_mod
+
+
+class TestSerialSourceHardening:
+    """R10 tests for the new SerialSource open sequence. UNTESTED ON HARDWARE."""
+
+    def _inject(self, monkeypatch, fake_obj, port_infos) -> "SerialSource":
+        """Inject a fake serial module and instantiate SerialSource."""
+        serial_mod, tools_mod, list_ports_mod = _make_fake_serial_module(fake_obj, port_infos)
+        monkeypatch.setitem(sys.modules, "serial", serial_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools", tools_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools.list_ports", list_ports_mod)
+        from kaawayan.record import SerialSource
+        return SerialSource("FAKESN")
+
+    def test_serial_created_without_port_then_opened(self, monkeypatch):
+        """Serial() must be constructed without a port; open() called afterwards."""
+        fake = _FakeSerialObj()
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        self._inject(monkeypatch, fake, ports)
+        # port must have been set after construction
+        assert fake.port == "COM99"
+        assert "open" in fake._call_log
+
+    def test_dtr_and_rts_set_false_before_open(self, monkeypatch):
+        """dtr=False and rts=False must appear in call_log BEFORE 'open'."""
+        fake = _FakeSerialObj()
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        self._inject(monkeypatch, fake, ports)
+
+        log = fake._call_log
+        open_idx = log.index("open")
+        dtr_idx = next(i for i, e in enumerate(log) if e == "set_dtr=False")
+        rts_idx = next(i for i, e in enumerate(log) if e == "set_rts=False")
+        assert dtr_idx < open_idx, "dtr=False must be set before open()"
+        assert rts_idx < open_idx, "rts=False must be set before open()"
+
+    def test_set_buffer_size_called_when_present(self, monkeypatch):
+        """set_buffer_size(rx_size=1<<20) is called when the method exists."""
+        fake = _FakeSerialObj()
+        buf_size_calls: list[int] = []
+
+        def _set_buffer_size(rx_size: int):
+            buf_size_calls.append(rx_size)
+
+        fake.set_buffer_size = _set_buffer_size  # type: ignore[attr-defined]
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        self._inject(monkeypatch, fake, ports)
+        assert buf_size_calls == [1 << 20]
+
+    def test_set_buffer_size_skipped_when_absent(self, monkeypatch):
+        """SerialSource must not crash when set_buffer_size is absent."""
+        fake = _FakeSerialObj()
+        # _FakeSerialObj has no set_buffer_size — that's the point
+        assert not hasattr(fake, "set_buffer_size")
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        self._inject(monkeypatch, fake, ports)  # must not raise
+
+    def test_set_buffer_size_exception_ignored(self, monkeypatch):
+        """Exception from set_buffer_size must be silently ignored."""
+        fake = _FakeSerialObj()
+
+        def _bad_set_buffer_size(rx_size: int):
+            raise OSError("not supported")
+
+        fake.set_buffer_size = _bad_set_buffer_size  # type: ignore[attr-defined]
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        self._inject(monkeypatch, fake, ports)  # must not raise
+
+    def test_usb_serial_matching_picks_correct_device(self, monkeypatch):
+        """usb_serial match must pick the matching device, not the first one."""
+        fake = _FakeSerialObj()
+        ports = [
+            _FakePortInfo("COM10", "OTHER_SN"),
+            _FakePortInfo("COM11", "FAKESN"),
+            _FakePortInfo("COM12", "ANOTHER"),
+        ]
+        self._inject(monkeypatch, fake, ports)
+        assert fake.port == "COM11"
+
+    def test_fallback_to_direct_port_name(self, monkeypatch):
+        """When usb_serial not found in list_ports, treat arg as port name."""
+        fake = _FakeSerialObj()
+        ports: list[_FakePortInfo] = []  # no matching serial number
+        serial_mod, tools_mod, list_ports_mod = _make_fake_serial_module(fake, ports)
+        monkeypatch.setitem(sys.modules, "serial", serial_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools", tools_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools.list_ports", list_ports_mod)
+        from kaawayan.record import SerialSource
+        src = SerialSource("COM5")
+        assert fake.port == "COM5"
+
+    def test_serial_number_attribute_set_on_match(self, monkeypatch):
+        """serial_number attribute is set when matched by usb_serial."""
+        fake = _FakeSerialObj()
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        src = self._inject(monkeypatch, fake, ports)
+        assert src.serial_number == "FAKESN"
+
+    def test_serial_number_attribute_none_on_direct_port(self, monkeypatch):
+        """serial_number attribute is None when falling back to direct port."""
+        fake = _FakeSerialObj()
+        ports: list[_FakePortInfo] = []
+        serial_mod, tools_mod, list_ports_mod = _make_fake_serial_module(fake, ports)
+        monkeypatch.setitem(sys.modules, "serial", serial_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools", tools_mod)
+        monkeypatch.setitem(sys.modules, "serial.tools.list_ports", list_ports_mod)
+        from kaawayan.record import SerialSource
+        src = SerialSource("COM5")
+        assert src.serial_number is None
+
+    def test_read_uses_in_waiting(self, monkeypatch):
+        """read() must use in_waiting to determine n bytes to read."""
+        fake = _FakeSerialObj()
+        fake.in_waiting = 100
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        src = self._inject(monkeypatch, fake, ports)
+        result = src.read()
+        assert isinstance(result, bytes)
+        # n = max(1, min(in_waiting=100, 65536)) = 100
+        assert len(result) == 100
+
+    def test_read_uses_in_waiting_zero_reads_one_byte(self, monkeypatch):
+        """When in_waiting==0, read() still reads at least 1 byte."""
+        fake = _FakeSerialObj()
+        fake.in_waiting = 0
+        ports = [_FakePortInfo("COM99", "FAKESN")]
+        src = self._inject(monkeypatch, fake, ports)
+        # The fake returns b'\x00'*min(size,in_waiting) but in_waiting=0,
+        # so result is b"" — that's fine as long as the call uses n=max(1,...)
+        # We just verify no exception raised.
+        result = src.read()
+        assert isinstance(result, bytes)

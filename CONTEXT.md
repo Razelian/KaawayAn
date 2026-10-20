@@ -94,7 +94,8 @@ rescan. Identify nodes by USB serial number (never by port name); warn if it dis
 with header node_id. Log gaps per node and per type from seq.
 Golden test: `tests/golden/frames.hex` holds known frames that both the C and Python sides
 must parse identically. Those frames are made by the Python encoder, so they only prove Python
-agrees with itself; frames dumped from real firmware are added as `tests/golden/frames_fw.hex`.
+agrees with itself; frames dumped from real firmware are added as `tests/golden/frames_fw.hex`
+(generate with `python -m kaawayan.rawdump`).
 
 ## 4b. Ramp test mode (firmware v0)
 Audio is synthetic. For a node, let n = seq*512 + i be the global stereo sample index since

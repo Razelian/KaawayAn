@@ -22,3 +22,7 @@ Open: all numbers are simulation-only; SerialSource UNTESTED ON HARDWARE.
 Done: slice 7 live.py (rewrite: absolute sample index timestamps, alive/dead + startup grace, final-group rule, flush, smoother wired, replay_trial interleaved with cfg_path); R4 corrected 3 tests in test_live.py to match startup-grace spec; 239 passed
 Next: R5 slice 8 capture.py
 Open: __main__ runner and reconnect handling (plan L2) UNTESTED / OUT OF SCOPE; startup grace means the first ~2*window_s of a run reports dead_node_ids==[] for a node that is really dead.
+
+Done: R3b bookkeeping – PROGRESS.md entry for slice 8 / R6 / R7 / R8 / ramp contract; R9 rawdump.py (split_raw_frames, select_golden, CLI) + test_rawdump.py (24 tests: garbage skip, corrupt skip, raw bytes exact, consecutive-seq, force, CLI monkeypatch, 4-check golden); R10 SerialSource hardening (unopened Serial, dtr/rts before open, 1 MiB buffer, serial_number attr) + 11 tests via fake serial module; CONTEXT.md golden-frames line updated; 331 passed 4 skipped.
+Next: firmware (slice 3b, hardware only), then real-hardware serial capture and ramp verification.
+Open: SerialSource / rawdump CLI UNTESTED ON HARDWARE; capture.py __main__ UNTESTED ON HARDWARE; startup grace means first ~2*window_s dead_node_ids==[] for a truly dead node.

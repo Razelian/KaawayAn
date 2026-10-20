@@ -653,34 +653,61 @@ class SerialSource:
         serial.tools.list_ports.
     baudrate : int
         Serial baud rate (ignored for CDC ACM but kept for API symmetry).
+
+    Notes
+    -----
+    The Serial object is created WITHOUT a port so the OS does not open
+    the device immediately (which would assert DTR/RTS and can reset the
+    ESP32-S3 into download mode).  DTR and RTS are forced False before
+    open() is called.  After open, the receive buffer is enlarged to 1 MiB
+    on Windows (set_buffer_size, ignored if unavailable).
     """
 
-    def __init__(self, port_or_serial: str, baudrate: int = 115200) -> None:  # pragma: no cover
-        import serial
-        import serial.tools.list_ports
+    def __init__(self, port_or_serial: str, baudrate: int = 115200) -> None:
+        import serial  # type: ignore[import]
+        import serial.tools.list_ports  # type: ignore[import]
 
         # Try to match by usb_serial first
-        matched_port = None
+        matched_port: str | None = None
+        self.serial_number: str | None = None
         for info in serial.tools.list_ports.comports():
             if info.serial_number == port_or_serial:
                 matched_port = info.device
+                self.serial_number = info.serial_number
                 break
 
         if matched_port is None:
             # Fall back to treating it as a direct port name
             matched_port = port_or_serial
 
-        self._serial = serial.Serial(matched_port, baudrate=baudrate, timeout=0.05)
+        # Create UNOPENED Serial, set port/baud/timeout, suppress DTR+RTS,
+        # then open.  This avoids the reset-on-connect problem on ESP32-S3.
+        ser = serial.Serial()
+        ser.port = matched_port
+        ser.baudrate = baudrate
+        ser.timeout = 0.05
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
 
-    def read(self, size: int = 4096) -> bytes:  # pragma: no cover
+        # Enlarge the OS receive buffer (Windows only; ignore errors).
+        if hasattr(ser, "set_buffer_size"):
+            try:
+                ser.set_buffer_size(rx_size=1 << 20)
+            except Exception:
+                pass
+
+        self._serial = ser
+
+    def read(self, size: int = 4096) -> bytes:
         """Read up to size bytes; uses in_waiting for efficiency."""
         waiting = self._serial.in_waiting
         n = max(1, min(waiting, 65536))
         return self._serial.read(n)
 
     @property
-    def is_open(self) -> bool:  # pragma: no cover
+    def is_open(self) -> bool:
         return self._serial.is_open
 
-    def close(self) -> None:  # pragma: no cover
+    def close(self) -> None:
         self._serial.close()

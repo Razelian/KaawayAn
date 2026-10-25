@@ -1,5 +1,0 @@
-Metadata-Version: 2.4
-Name: kaawayan
-Version: 0.0.0
-Summary: KaawayAn localization library (protocol, bearing, fusion, live pipeline)
-Requires-Python: >=3.11

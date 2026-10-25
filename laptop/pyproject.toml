@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kaawayan"
+version = "0.0.0"
+description = "KaawayAn localization library (protocol, bearing, fusion, live pipeline)"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["kaawayan*"]

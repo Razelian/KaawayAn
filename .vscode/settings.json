@@ -1,1 +1,4 @@
-{"python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe"}
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "cmake.sourceDirectory": "C:/Users/Admin/Pictures/KaawayAn repos/KaawayAn/firmware"
+}

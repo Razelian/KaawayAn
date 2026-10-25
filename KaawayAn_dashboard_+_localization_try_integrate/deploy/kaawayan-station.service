@@ -1,0 +1,16 @@
+[Unit]
+Description=KaawayAn acoustic monitoring station
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kaawayan
+ExecStart=/bin/bash /opt/kaawayan/scripts/start_station.sh
+Environment="PATH=/opt/kaawayan/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Restart=always
+RestartSec=5
+User=kaawayan
+Group=kaawayan
+
+[Install]
+WantedBy=multi-user.target

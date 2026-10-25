@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/>
+<style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"tertiary":"#272f29","on-surface":"#121e19","outline":"#717973","on-secondary-fixed":"#2b1706","on-tertiary":"#ffffff","on-primary-fixed-variant":"#254f3b","on-background":"#121e19","outline-variant":"#c1c8c2","surface-variant":"#d8e6de","on-primary-fixed":"#002114","primary-fixed":"#bfedd3","inverse-on-surface":"#e6f4ec","telemetry-danger":"#DC2626","background-base":"#FAF9F6","surface-tint":"#3d6752","tertiary-fixed-dim":"#c1c9c0","error-container":"#ffdad6","secondary-fixed":"#ffdcc3","inverse-surface":"#27332e","on-secondary":"#ffffff","on-primary":"#ffffff","on-tertiary-container":"#aab2aa","surface-container":"#e3f1e9","border-subtle":"#E2E6DF","tertiary-container":"#3d453f","primary-fixed-dim":"#a3d1b7","inverse-primary":"#a3d1b7","telemetry-info":"#2563EB","surface-bright":"#effdf4","error":"#ba1a1a","tertiary-fixed":"#dde5dc","primary":"#063423","background":"#effdf4","on-secondary-fixed-variant":"#5b412d","on-error":"#ffffff","surface-container-low":"#e9f7ef","surface":"#effdf4","on-tertiary-fixed":"#161d18","surface-dim":"#cfddd5","telemetry-warning":"#D97706","secondary-container":"#ffd8bd","surface-container-lowest":"#ffffff","on-tertiary-fixed-variant":"#414942","primary-container":"#214b38","on-primary-container":"#8ebaa2","telemetry-active":"#1F7A4D","surface-container-high":"#ddebe3","secondary":"#755843","secondary-fixed-dim":"#e5bfa4","on-secondary-container":"#7a5d47","on-error-container":"#93000a","border-muted":"#E5E9E2","on-surface-variant":"#414943","surface-container-highest":"#d8e6de"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"space-sm":"0.5rem","space-xl":"2rem","space-xs":"0.25rem","gutter":"1.25rem","gutter-desktop":"1.5rem","space-lg":"1.5rem","margin-desktop":"2rem","margin-tablet":"1.5rem","margin":"1rem","space-md":"1rem"},fontFamily:{"body-lg":["Inter"],"headline-xl-mobile":["Plus Jakarta Sans"],"data-mono-sm":["Geist"],"data-mono-lg":["Geist"],"headline-lg":["Plus Jakarta Sans"],"body-sm":["Inter"],"data-mono-md":["Geist"],"headline-xl":["Plus Jakarta Sans"],"label-sm":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-md":["Plus Jakarta Sans"],"body-md":["Inter"]},fontSize:{"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-xl-mobile":["26px",{"lineHeight":"34px","letterSpacing":"-0.02em","fontWeight":"700"}],"data-mono-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.02em","fontWeight":"500"}],"data-mono-lg":["20px",{"lineHeight":"24px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"data-mono-md":["14px",{"lineHeight":"18px","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"headline-md":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"label-md":["13px",{"lineHeight":"16px","letterSpacing":"0.01em","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}]}}}}</script></head><body class="bg-background-base font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-72 bg-background-base z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex flex-col"><div class="h-16 px-space-lg flex items-center gap-space-sm bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><img alt="KaawayAn Wordmark Icon" class="h-8 w-auto object-contain"/><div class="flex flex-col"><span class="font-headline-md text-headline-md text-primary tracking-tight">KaawayAn</span><span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Acoustic Drone Monitoring</span></div></div><div class="px-space-md pt-space-lg"><div class="px-space-sm pb-space-xs font-label-sm text-label-sm uppercase text-secondary tracking-wider">Telemetry Console</div><nav class="flex flex-col gap-space-xs" data-active-classes="bg-surface-container text-primary font-headline-md shadow-[0_1px_3px_rgba(23,35,30,0.04)]"><a aria-current="page" class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg transition-all bg-surface-container text-primary font-headline-md shadow-[0_1px_3px_rgba(23,35,30,0.04)]" data-path="overview" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>Overview</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="detections" href="#"><span class="material-symbols-outlined text-[20px]">graphic_eq</span><span>Detections</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="environment" href="#"><span class="material-symbols-outlined text-[20px]">thermostat</span><span>Environment</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="about-team" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span>About &amp; Team</span></a></nav></div></div><div class="p-space-md"><div class="p-space-md rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(23,35,30,0.04)] flex flex-col gap-space-sm"><div class="flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Sensor Mesh</span><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active bg-surface-container px-space-xs py-[2px] rounded-full">2/2 SYNC</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-space-xs"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-telemetry-active opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-telemetry-active"></span></span><span class="font-data-mono-md text-data-mono-md text-on-surface">Node Alpha</span></div><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active">Online</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-space-xs"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-telemetry-active opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-telemetry-active"></span></span><span class="font-data-mono-md text-data-mono-md text-on-surface">Node Beta</span></div><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active">Online</span></div></div></div></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md z-40 shadow-[0_1px_8px_rgba(0,0,0,0.04)] flex items-center justify-between px-gutter-desktop"><div class="flex items-center gap-space-md"><img alt="KaawayAn Wordmark Icon" class="h-8 w-auto object-contain"/><span class="font-headline-md text-headline-md text-primary">KaawayAn Console</span><div class="flex items-center gap-space-xs px-space-sm py-[2px] rounded-full bg-secondary-container text-on-secondary-container font-data-mono-sm text-data-mono-sm"><span class="material-symbols-outlined text-[14px]">science</span><span>DEMO DATA</span></div></div><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-xs text-on-surface-variant font-data-mono-md text-data-mono-md"><span class="material-symbols-outlined text-[16px] text-secondary">schedule</span><span>19 Oct 2026 · 14:32 PHT</span></div><div class="flex items-center gap-space-sm"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-16 bg-background-base min-h-screen"><div class="flex flex-col w-full px-gutter-desktop py-space-lg gap-space-lg max-w-[1540px] mx-auto">
+<!-- Overview Header Area -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm">
+<span class="px-space-sm py-[2px] rounded-full bg-secondary-container text-on-secondary-container font-data-mono-sm text-data-mono-sm tracking-wider uppercase">
+          DEMO DATA
+        </span>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-[2px] rounded-full bg-surface-container text-telemetry-active font-data-mono-sm text-data-mono-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-telemetry-active animate-pulse"></span>
+          FIELD TELEMETRY REALTIME
+        </span>
+</div>
+<h1 class="font-headline-xl text-headline-xl text-primary tracking-tight">
+        Monitoring Overview
+      </h1>
+<p class="font-body-md text-body-md text-on-surface-variant">
+        Acoustic activity and microclimate field conditions across sensor mesh
+      </p>
+</div>
+<div class="flex items-center gap-space-md text-on-surface-variant font-data-mono-md text-data-mono-md bg-surface-container-lowest px-space-md py-space-sm rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-[18px] text-secondary">update</span>
+<span>19 Oct 2026 · 14:32 PHT</span>
+<span class="w-2 h-2 rounded-full bg-telemetry-active"></span>
+</div>
+</section>
+<!-- Hero Card: Latest Drone Detection -->
+<section class="w-full bg-surface-container-low rounded-xl shadow-sm p-space-lg flex flex-col gap-space-md transition-all hover:shadow-md">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">
+        Latest Drone Detection
+      </span>
+<span class="font-data-mono-sm text-data-mono-sm text-telemetry-active bg-surface-container px-space-sm py-[2px] rounded-full font-medium">
+        Confidence High
+      </span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-lg items-center">
+<!-- Status Badge & Description -->
+<div class="md:col-span-4 flex items-center gap-space-md bg-surface-container-lowest p-space-md rounded-lg shadow-sm">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[28px] animate-pulse">graphic_eq</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-primary leading-tight">Drone-like audio detected</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Harmonic acoustic signature matched</span>
+</div>
+</div>
+<!-- Key Metrics Cluster -->
+<div class="md:col-span-5 grid grid-cols-3 gap-space-sm bg-surface-container-lowest p-space-md rounded-lg shadow-sm">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-secondary uppercase">Confidence</span>
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">94.2<span class="text-label-md font-normal text-on-surface-variant">%</span></span>
+<span class="font-data-mono-sm text-data-mono-sm text-telemetry-active flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[12px]">trending_up</span>+3.1%
+          </span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-secondary uppercase">Angle · Node A</span>
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">+28<span class="text-headline-md font-normal">°</span></span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Bearing East</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-secondary uppercase">Angle · Node B</span>
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">+19<span class="text-headline-md font-normal">°</span></span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant">Bearing East</span>
+</div>
+</div>
+<!-- Time & Event Identifier -->
+<div class="md:col-span-3 flex flex-col justify-between items-start md:items-end bg-surface-container-lowest p-space-md rounded-lg shadow-sm h-full">
+<div class="flex flex-col md:items-end">
+<span class="font-label-sm text-label-sm text-secondary uppercase">Timestamp</span>
+<span class="font-data-mono-lg text-data-mono-lg text-on-surface font-semibold">14:32:08 PHT</span>
+</div>
+<div class="flex flex-col md:items-end mt-space-xs">
+<span class="font-label-sm text-label-sm text-secondary uppercase">Event ID</span>
+<span class="font-data-mono-md text-data-mono-md text-primary font-semibold bg-surface-container px-space-sm py-[2px] rounded">DET-024</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 3-Column Environmental Metrics Cards -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
+<!-- Temperature Card -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between gap-space-md hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">device_thermostat</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">Temperature</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">29.4</span>
+<span class="font-headline-md text-headline-md text-secondary">°C</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 rounded-full mt-space-sm overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 65%;"></div>
+</div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span>Node A</span>
+<span>updated 2 s ago</span>
+</div>
+</div>
+<!-- Humidity Card -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between gap-space-md hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">water_drop</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">Humidity</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">72.1</span>
+<span class="font-headline-md text-headline-md text-secondary">% RH</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 rounded-full mt-space-sm overflow-hidden">
+<div class="bg-telemetry-active h-full rounded-full" style="width: 72%;"></div>
+</div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span>Node A</span>
+<span>updated 2 s ago</span>
+</div>
+</div>
+<!-- Pressure Card -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between gap-space-md hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">speed</span>
+</div>
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">Pressure</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-baseline gap-space-xs">
+<span class="font-headline-xl text-headline-xl text-primary font-bold tracking-tight">1008.6</span>
+<span class="font-headline-md text-headline-md text-secondary">hPa</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 rounded-full mt-space-sm overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 58%;"></div>
+</div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span>Node A</span>
+<span>updated 2 s ago</span>
+</div>
+</div>
+</section>
+<!-- Bottom Visual and Data Grid -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
+<!-- Left Column: Acoustic Direction Visualizer -->
+<div class="lg:col-span-7 bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between pb-space-sm">
+<div class="flex flex-col">
+<h2 class="font-headline-md text-headline-md text-primary">Acoustic Direction</h2>
+<span class="font-body-sm text-body-sm text-secondary">Relative to node forward axis (TDoA estimate)</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm px-space-sm py-space-xs bg-surface-container text-primary rounded-full">
+          Beam Tracking
+        </span>
+</div>
+<!-- Radar Arc Visualizer Container -->
+<div class="relative w-full flex flex-col items-center justify-center py-space-md">
+<svg aria-label="Acoustic angle beam polar diagram" class="w-full max-w-[460px] h-auto overflow-visible select-none" viewbox="0 0 460 270">
+<defs>
+<lineargradient id="arcFillGrad" x1="0%" x2="0%" y1="100%" y2="0%">
+<stop offset="0%" stop-color="#214B38" stop-opacity="0.03"></stop>
+<stop offset="100%" stop-color="#214B38" stop-opacity="0.16"></stop>
+</lineargradient>
+<radialgradient cx="0%" cy="100%" id="beamGlow" r="100%">
+<stop offset="0%" stop-color="#1F7A4D" stop-opacity="0.4"></stop>
+<stop offset="100%" stop-color="#1F7A4D" stop-opacity="0"></stop>
+</radialgradient>
+</defs>
+<!-- Outer 120-degree wedge sector (-60° to +60°) -->
+<!-- Origin: (230, 240), R=200. -60°: x=230 - 200*sin(60°)=56.8, y=240 - 200*cos(60°)=140 -->
+<!-- +60°: x=230 + 200*sin(60°)=403.2, y=140 -->
+<path d="M 230 240 L 56.8 140 A 200 200 0 0 1 403.2 140 Z" fill="url(#arcFillGrad)" stroke="#E2E6DF" stroke-width="1.5"></path>
+<!-- Concentric Inner Arcs (R = 140, R = 80) -->
+<path d="M 108.8 170 A 140 140 0 0 1 351.2 170" fill="none" stroke="#E2E6DF" stroke-dasharray="3 3" stroke-width="1"></path>
+<path d="M 160.7 200 A 80 80 0 0 1 299.3 200" fill="none" stroke="#E2E6DF" stroke-dasharray="2 2" stroke-width="1"></path>
+<!-- Radial Spokes: -60°, -30°, 0°, +30°, +60° -->
+<!-- -30°: sin=0.5, cos=0.866. x=230-100=130, y=240-173.2=66.8 -->
+<line stroke="#E2E6DF" stroke-dasharray="3 3" stroke-width="1" x1="230" x2="130" y1="240" y2="66.8"></line>
+<!-- 0° Center Axis -->
+<line stroke="#E2E6DF" stroke-width="1.5" x1="230" x2="230" y1="240" y2="35"></line>
+<!-- +30°: x=330, y=66.8 -->
+<line stroke="#E2E6DF" stroke-dasharray="3 3" stroke-width="1" x1="230" x2="330" y1="240" y2="66.8"></line>
+<!-- Degree Angle Labels -->
+<text fill="#755843" font-family="Geist, monospace" font-size="12" font-weight="500" text-anchor="end" x="44" y="145">-60°</text>
+<text fill="#755843" font-family="Geist, monospace" font-size="11" text-anchor="end" x="120" y="58">-30°</text>
+<text fill="#063423" font-family="Plus Jakarta Sans, sans-serif" font-size="13" font-weight="700" text-anchor="middle" x="230" y="24">0°</text>
+<text fill="#755843" font-family="Geist, monospace" font-size="11" text-anchor="start" x="340" y="58">+30°</text>
+<text fill="#755843" font-family="Geist, monospace" font-size="12" font-weight="500" text-anchor="start" x="416" y="145">+60°</text>
+<!-- Active Beam at +28 degrees -->
+<!-- +28°: sin(28)=0.4695, cos(28)=0.8829. For R=205: dx=96.2, dy=181. x=326.2, y=59 -->
+<line stroke="#063423" stroke-linecap="round" stroke-width="3" x1="230" x2="326.2" y1="240" y2="59"></line>
+<!-- Beam Target Endpoint / Dot -->
+<circle cx="326.2" cy="59" fill="#1F7A4D" r="6" stroke="#FAF9F6" stroke-width="2"></circle>
+<!-- Angle Callout Marker Badge -->
+<rect fill="#effdf4" height="24" rx="12" stroke="#1F7A4D" stroke-width="1" width="54" x="334" y="38"></rect>
+<text fill="#063423" font-family="Geist, monospace" font-size="12" font-weight="700" text-anchor="middle" x="361" y="54">+28°</text>
+<!-- Origin Base Station Node A -->
+<circle cx="230" cy="240" fill="#214B38" r="12"></circle>
+<circle cx="230" cy="240" fill="#FAF9F6" r="6"></circle>
+</svg>
+<div class="flex items-center gap-space-xs mt-space-xs">
+<span class="w-2.5 h-2.5 rounded-full bg-primary"></span>
+<span class="font-headline-md text-headline-md text-primary font-semibold">Node A</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary ml-space-xs">(Primary Microphone Array)</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-sm bg-surface-container-low px-space-md py-space-sm rounded-lg">
+<div class="flex items-center gap-space-xs text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px] text-telemetry-active">check_circle</span>
+<span>Phase-aligned array sync</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">Sampling: 48 kHz / 24-bit</span>
+</div>
+</div>
+<!-- Right Column: Stacked Node Status & Recent Detections -->
+<div class="lg:col-span-5 flex flex-col gap-space-lg">
+<!-- Node Status Card -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-md text-headline-md text-primary">Node Status</h2>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary uppercase">2 Active Units</span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Node A Item -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg transition-colors hover:bg-surface-container">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-primary-fixed flex items-center justify-center font-headline-md text-on-primary-fixed font-bold">
+                A
+              </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-md text-data-mono-md text-primary font-semibold">Node A</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">XIAO ESP32-S3</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Audio + BME280 connected</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-space-sm py-space-xs rounded-full bg-surface-container-lowest shadow-xs text-telemetry-active font-data-mono-sm text-data-mono-sm">
+<span class="w-2 h-2 rounded-full bg-telemetry-active"></span>
+<span>Online</span>
+</div>
+</div>
+<!-- Node B Item -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg transition-colors hover:bg-surface-container">
+<div class="flex items-center gap-space-md">
+<div class="w-9 h-9 rounded-full bg-secondary-fixed flex items-center justify-center font-headline-md text-on-secondary-fixed font-bold">
+                B
+              </div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-md text-data-mono-md text-primary font-semibold">Node B</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">ESP32-S3 N16R8</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Audio + BME280 connected</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-space-sm py-space-xs rounded-full bg-surface-container-lowest shadow-xs text-telemetry-active font-data-mono-sm text-data-mono-sm">
+<span class="w-2 h-2 rounded-full bg-telemetry-active"></span>
+<span>Online</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Recent Detections Table Card -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between pb-space-xs">
+<h2 class="font-headline-md text-headline-md text-primary">Recent Detections</h2>
+<span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">TFLite Classifier</span>
+</div>
+<div class="overflow-x-auto w-full">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low text-secondary font-label-sm text-label-sm uppercase">
+<th class="py-space-xs px-space-sm rounded-l">Timestamp (PHT)</th>
+<th class="py-space-xs px-space-sm">Model Conf.</th>
+<th class="py-space-xs px-space-sm text-center">Angle · Node A</th>
+<th class="py-space-xs px-space-sm text-right rounded-r">Event ID</th>
+</tr>
+</thead>
+<tbody class="font-data-mono-sm text-data-mono-sm text-on-surface">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-sm font-semibold text-primary">14:32:08</td>
+<td class="py-space-sm px-space-sm">
+<span class="text-telemetry-active font-semibold">94.2%</span>
+</td>
+<td class="py-space-sm px-space-sm text-center font-bold text-primary">+28°</td>
+<td class="py-space-sm px-space-sm text-right">
+<span class="bg-surface-container px-space-xs py-[1px] rounded text-primary">DET-024</span>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-sm font-semibold text-primary">14:28:41</td>
+<td class="py-space-sm px-space-sm">
+<span class="text-on-surface">88.6%</span>
+</td>
+<td class="py-space-sm px-space-sm text-center font-medium text-secondary">-12°</td>
+<td class="py-space-sm px-space-sm text-right">
+<span class="bg-surface-container-low px-space-xs py-[1px] rounded text-on-surface-variant">DET-023</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-sm font-semibold text-primary">14:24:16</td>
+<td class="py-space-sm px-space-sm">
+<span class="text-on-surface">91.3%</span>
+</td>
+<td class="py-space-sm px-space-sm text-center font-bold text-primary">+8°</td>
+<td class="py-space-sm px-space-sm text-right">
+<span class="bg-surface-container-low px-space-xs py-[1px] rounded text-on-surface-variant">DET-022</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</section>
+</div></main></div></body></html>

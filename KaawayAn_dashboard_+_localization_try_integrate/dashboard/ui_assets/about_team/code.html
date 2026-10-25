@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/>
+<style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"tertiary":"#272f29","on-surface":"#121e19","outline":"#717973","on-secondary-fixed":"#2b1706","on-tertiary":"#ffffff","on-primary-fixed-variant":"#254f3b","on-background":"#121e19","outline-variant":"#c1c8c2","surface-variant":"#d8e6de","on-primary-fixed":"#002114","primary-fixed":"#bfedd3","inverse-on-surface":"#e6f4ec","telemetry-danger":"#DC2626","background-base":"#FAF9F6","surface-tint":"#3d6752","tertiary-fixed-dim":"#c1c9c0","error-container":"#ffdad6","secondary-fixed":"#ffdcc3","inverse-surface":"#27332e","on-secondary":"#ffffff","on-primary":"#ffffff","on-tertiary-container":"#aab2aa","surface-container":"#e3f1e9","border-subtle":"#E2E6DF","tertiary-container":"#3d453f","primary-fixed-dim":"#a3d1b7","inverse-primary":"#a3d1b7","telemetry-info":"#2563EB","surface-bright":"#effdf4","error":"#ba1a1a","tertiary-fixed":"#dde5dc","primary":"#063423","background":"#effdf4","on-secondary-fixed-variant":"#5b412d","on-error":"#ffffff","surface-container-low":"#e9f7ef","surface":"#effdf4","on-tertiary-fixed":"#161d18","surface-dim":"#cfddd5","telemetry-warning":"#D97706","secondary-container":"#ffd8bd","surface-container-lowest":"#ffffff","on-tertiary-fixed-variant":"#414942","primary-container":"#214b38","on-primary-container":"#8ebaa2","telemetry-active":"#1F7A4D","surface-container-high":"#ddebe3","secondary":"#755843","secondary-fixed-dim":"#e5bfa4","on-secondary-container":"#7a5d47","on-error-container":"#93000a","border-muted":"#E5E9E2","on-surface-variant":"#414943","surface-container-highest":"#d8e6de"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"space-sm":"0.5rem","space-xl":"2rem","space-xs":"0.25rem","gutter":"1.25rem","gutter-desktop":"1.5rem","space-lg":"1.5rem","margin-desktop":"2rem","margin-tablet":"1.5rem","margin":"1rem","space-md":"1rem"},fontFamily:{"body-lg":["Inter"],"headline-xl-mobile":["Plus Jakarta Sans"],"data-mono-sm":["Geist"],"data-mono-lg":["Geist"],"headline-lg":["Plus Jakarta Sans"],"body-sm":["Inter"],"data-mono-md":["Geist"],"headline-xl":["Plus Jakarta Sans"],"label-sm":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-md":["Plus Jakarta Sans"],"body-md":["Inter"]},fontSize:{"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"headline-xl-mobile":["26px",{"lineHeight":"34px","letterSpacing":"-0.02em","fontWeight":"700"}],"data-mono-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.02em","fontWeight":"500"}],"data-mono-lg":["20px",{"lineHeight":"24px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"data-mono-md":["14px",{"lineHeight":"18px","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"headline-md":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"label-md":["13px",{"lineHeight":"16px","letterSpacing":"0.01em","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}]}}}}</script></head><body class="bg-background-base font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-72 bg-background-base z-50 flex flex-col justify-between shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex flex-col"><div class="h-16 px-space-lg flex items-center gap-space-sm bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><img alt="KaawayAn Wordmark Icon" class="h-8 w-auto object-contain"/><div class="flex flex-col"><span class="font-headline-md text-headline-md text-primary tracking-tight">KaawayAn</span><span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Acoustic Drone Monitoring</span></div></div><div class="px-space-md pt-space-lg"><div class="px-space-sm pb-space-xs font-label-sm text-label-sm uppercase text-secondary tracking-wider">Telemetry Console</div><nav class="flex flex-col gap-space-xs" data-active-classes="bg-surface-container text-primary font-headline-md shadow-[0_1px_3px_rgba(23,35,30,0.04)]"><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="overview" href="#"><span class="material-symbols-outlined text-[20px]">grid_view</span><span>Overview</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="detections" href="#"><span class="material-symbols-outlined text-[20px]">graphic_eq</span><span>Detections</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="environment" href="#"><span class="material-symbols-outlined text-[20px]">thermostat</span><span>Environment</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="about-team" href="#"><span class="material-symbols-outlined text-[20px]">group</span><span>About &amp; Team</span></a></nav></div></div><div class="p-space-md"><div class="p-space-md rounded-xl bg-surface-container-lowest shadow-[0_1px_3px_rgba(23,35,30,0.04)] flex flex-col gap-space-sm"><div class="flex items-center justify-between"><span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Sensor Mesh</span><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active bg-surface-container px-space-xs py-[2px] rounded-full">2/2 SYNC</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-space-xs"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-telemetry-active opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-telemetry-active"></span></span><span class="font-data-mono-md text-data-mono-md text-on-surface">Node Alpha</span></div><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active">Online</span></div><div class="flex items-center justify-between"><div class="flex items-center gap-space-xs"><span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-telemetry-active opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-telemetry-active"></span></span><span class="font-data-mono-md text-data-mono-md text-on-surface">Node Beta</span></div><span class="font-data-mono-sm text-data-mono-sm text-telemetry-active">Online</span></div></div></div></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface-container-lowest/90 backdrop-blur-md z-40 shadow-[0_1px_8px_rgba(0,0,0,0.04)] flex items-center justify-between px-gutter-desktop"><div class="flex items-center gap-space-md"><img alt="KaawayAn Wordmark Icon" class="h-8 w-auto object-contain"/><span class="font-headline-md text-headline-md text-primary">KaawayAn Console</span><div class="flex items-center gap-space-xs px-space-sm py-[2px] rounded-full bg-secondary-container text-on-secondary-container font-data-mono-sm text-data-mono-sm"><span class="material-symbols-outlined text-[14px]">science</span><span>DEMO DATA</span></div></div><div class="flex items-center gap-space-lg"><div class="flex items-center gap-space-xs text-on-surface-variant font-data-mono-md text-data-mono-md"><span class="material-symbols-outlined text-[16px] text-secondary">schedule</span><span>19 Oct 2026 · 14:32 PHT</span></div><div class="flex items-center gap-space-sm"><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-16 bg-background-base min-h-screen"><div class="flex flex-col w-full">
+<div class="px-margin-desktop py-space-xl max-w-[1520px] mx-auto w-full flex flex-col gap-space-xl">
+<!-- Page Introduction Header -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm mb-space-xs">
+<span class="inline-flex items-center px-space-sm py-[2px] rounded-full bg-secondary-container text-on-secondary-container font-data-mono-sm text-data-mono-sm tracking-wide">
+            DEMO DATA
+          </span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary tracking-widest uppercase">
+            SPECIFICATION v2.4
+          </span>
+</div>
+<h1 class="font-headline-xl text-headline-xl text-primary tracking-tight">
+          About KaawayAn
+        </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+          The project, the hardware, and the people behind it.
+        </p>
+</div>
+<div class="flex items-center gap-space-xs font-data-mono-sm text-data-mono-sm text-secondary bg-surface-container-low px-space-md py-space-xs rounded-full self-start md:self-auto">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+<span>Mesh Protocol Synchronized · 19 Oct 2026 · 14:32 PHT</span>
+</div>
+</header>
+<!-- Architecture Overview Card -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col lg:flex-row items-center justify-between gap-space-xl">
+<div class="flex flex-col justify-center max-w-xl">
+<div class="flex items-center gap-space-xs mb-space-xs">
+<span class="material-symbols-outlined text-secondary text-[18px]">hub</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">
+            Acoustic Drone Monitoring
+          </span>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-primary mb-space-sm">
+          Distributed Acoustic Triangulation
+        </h2>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+          KaawayAn explores acoustic drone detection and direction estimation using two distributed sensing nodes, paired with real-time microclimate environmental telemetry to filter turbulence and atmospheric damping.
+        </p>
+<div class="flex items-center gap-space-md mt-space-lg">
+<div class="flex items-center gap-space-xs text-telemetry-active font-data-mono-sm text-data-mono-sm">
+<span class="w-2 h-2 rounded-full bg-telemetry-active"></span>
+<span>Zero Acoustic Drift</span>
+</div>
+<div class="flex items-center gap-space-xs text-secondary font-data-mono-sm text-data-mono-sm">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>48kHz Dual I2S Stream</span>
+</div>
+</div>
+</div>
+<!-- Topology Diagram -->
+<div class="w-full lg:w-auto flex-1 flex flex-col sm:flex-row items-center justify-center gap-space-md py-space-sm">
+<!-- Node A -->
+<div class="bg-surface-container-low rounded-lg p-space-lg flex flex-col items-center justify-center text-center w-full sm:w-44 transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-primary mb-space-sm shadow-sm">
+<span class="material-symbols-outlined text-[24px]">mic</span>
+</div>
+<span class="font-headline-md text-headline-md text-primary">Node A</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary mt-1">Audio + Environment</span>
+<span class="inline-block mt-space-sm px-space-xs py-[2px] rounded-full bg-surface-container-high text-telemetry-active font-data-mono-sm text-[10px]">INMP441 ×2</span>
+</div>
+<!-- Data Bus Left -->
+<div class="hidden sm:flex flex-col items-center justify-center w-16">
+<span class="font-data-mono-sm text-[10px] text-secondary tracking-tighter mb-1">I2S/UART</span>
+<div class="w-full h-[2px] bg-outline-variant relative">
+<div class="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary-container"></div>
+</div>
+</div>
+<!-- Laptop Node -->
+<div class="bg-primary rounded-lg p-space-lg flex flex-col items-center justify-center text-center w-full sm:w-56 text-on-primary shadow-md">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center text-primary-fixed mb-space-sm">
+<span class="material-symbols-outlined text-[26px]">laptop_mac</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[16px] text-primary-fixed">graphic_eq</span>
+<span class="font-headline-md text-headline-md text-on-primary">Laptop Host</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-primary-container mt-1">Edge Signal Processing</span>
+<span class="font-data-mono-sm text-[10px] text-on-primary-fixed bg-primary-fixed px-space-xs py-[2px] rounded-full mt-space-sm font-semibold">TDOA Engine Active</span>
+</div>
+<!-- Data Bus Right -->
+<div class="hidden sm:flex flex-col items-center justify-center w-16">
+<span class="font-data-mono-sm text-[10px] text-secondary tracking-tighter mb-1">I2S/UART</span>
+<div class="w-full h-[2px] bg-outline-variant relative">
+<div class="absolute -top-[3px] left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-primary-container"></div>
+</div>
+</div>
+<!-- Node B -->
+<div class="bg-surface-container-low rounded-lg p-space-lg flex flex-col items-center justify-center text-center w-full sm:w-44 transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center text-primary mb-space-sm shadow-sm">
+<span class="material-symbols-outlined text-[24px]">mic</span>
+</div>
+<span class="font-headline-md text-headline-md text-primary">Node B</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary mt-1">Audio + Environment</span>
+<span class="inline-block mt-space-sm px-space-xs py-[2px] rounded-full bg-surface-container-high text-telemetry-active font-data-mono-sm text-[10px]">INMP441 ×2</span>
+</div>
+</div>
+</section>
+<!-- Project Pillars (3 Columns) -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
+<!-- Card 1: Detection -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-start gap-space-md hover:shadow-md transition-shadow">
+<div class="w-12 h-12 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">graphic_eq</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<h3 class="font-headline-md text-headline-md text-primary">Detection</h3>
+<span class="font-data-mono-sm text-data-mono-sm text-telemetry-active bg-surface-container px-space-xs py-[1px] rounded">98.2%</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-space-xs">
+            Recognize acoustic UAV rotor harmonics and high-RPM blade frequency signatures in real-time.
+          </p>
+</div>
+</div>
+<!-- Card 2: Direction -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-start gap-space-md hover:shadow-md transition-shadow">
+<div class="w-12 h-12 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">explore</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<h3 class="font-headline-md text-headline-md text-primary">Direction</h3>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary bg-surface-container-high px-space-xs py-[1px] rounded">TDOA</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-space-xs">
+            Estimate direction of arrival (DOA) and bearing vectors using cross-correlated paired microphones.
+          </p>
+</div>
+</div>
+<!-- Card 3: Environment -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-start gap-space-md hover:shadow-md transition-shadow">
+<div class="w-12 h-12 rounded-full bg-surface-container flex-shrink-0 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[24px]">air</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-space-xs">
+<h3 class="font-headline-md text-headline-md text-primary">Environment</h3>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary bg-surface-container-high px-space-xs py-[1px] rounded">1.0 Hz</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-space-xs">
+            Continuously monitor local ambient temperature, relative humidity, and barometric sound speed factors.
+          </p>
+</div>
+</div>
+</section>
+<!-- Hardware Bill of Materials (4 Stat Cards) -->
+<section class="grid grid-cols-2 md:grid-cols-4 gap-space-md">
+<!-- Metric 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">hub</span>
+</div>
+<div class="flex flex-col">
+<div class="font-data-mono-lg text-data-mono-lg text-primary tracking-tight">2</div>
+<span class="font-label-sm text-label-sm text-secondary">Sensing nodes</span>
+</div>
+</div>
+<!-- Metric 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">mic_external_on</span>
+</div>
+<div class="flex flex-col">
+<div class="font-data-mono-lg text-data-mono-lg text-primary tracking-tight">4</div>
+<span class="font-label-sm text-label-sm text-secondary">INMP441 microphones</span>
+</div>
+</div>
+<!-- Metric 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">memory</span>
+</div>
+<div class="flex flex-col">
+<div class="font-data-mono-lg text-data-mono-lg text-primary tracking-tight">2</div>
+<span class="font-label-sm text-label-sm text-secondary">BME280 sensors</span>
+</div>
+</div>
+<!-- Metric 4 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">terminal</span>
+</div>
+<div class="flex flex-col">
+<div class="font-data-mono-lg text-data-mono-lg text-primary tracking-tight">1</div>
+<span class="font-label-sm text-label-sm text-secondary">USB-connected laptop</span>
+</div>
+</div>
+</section>
+<!-- Team Section: "Meet the Team" -->
+<section class="bg-surface-container-lowest rounded-xl p-space-xl shadow-sm flex flex-col gap-space-lg">
+<div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-space-xs">
+<div class="flex items-baseline gap-space-sm">
+<h2 class="font-headline-lg text-headline-lg text-primary">Meet the Team</h2>
+<span class="font-body-sm text-body-sm text-secondary">Names and roles to be finalized for field trials</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary">4 Investigators Assigned</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<!-- Member 1 -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex items-center gap-space-md transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-secondary flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[26px]">person</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-primary truncate">Team Member 01</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">Hardware Lead</span>
+<span class="font-data-mono-sm text-[11px] text-secondary">Suggested role</span>
+</div>
+</div>
+<!-- Member 2 -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex items-center gap-space-md transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-secondary flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[26px]">person</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-primary truncate">Team Member 02</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">Signal Processing</span>
+<span class="font-data-mono-sm text-[11px] text-secondary">Suggested role</span>
+</div>
+</div>
+<!-- Member 3 -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex items-center gap-space-md transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-secondary flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[26px]">person</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-primary truncate">Team Member 03</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">Dashboard &amp; UX</span>
+<span class="font-data-mono-sm text-[11px] text-secondary">Suggested role</span>
+</div>
+</div>
+<!-- Member 4 -->
+<div class="bg-surface-container-low rounded-xl p-space-lg flex items-center gap-space-md transition-all hover:bg-surface-container">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-secondary flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[26px]">person</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-primary truncate">Team Member 04</span>
+<span class="font-body-sm text-body-sm text-on-surface font-semibold">Research &amp; Field Testing</span>
+<span class="font-data-mono-sm text-[11px] text-secondary">Suggested role</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Field Deployment Notes & Methodology Footer -->
+<section class="bg-surface-container-low rounded-xl p-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">menu_book</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-primary">Methodology Paper &amp; Schematics</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Review the full acoustic triangulation mathematical framework and sensor mounting CAD models.</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm flex-shrink-0">
+<button class="h-10 px-space-md rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md hover:bg-surface-container transition-all flex items-center gap-space-xs shadow-sm">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Datasheets</span>
+</button>
+<button class="h-10 px-space-md rounded-lg bg-primary text-on-primary font-label-md text-label-md hover:bg-primary-container transition-all flex items-center gap-space-xs shadow-sm">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+<span>View Topology Spec</span>
+</button>
+</div>
+</section>
+</div>
+</div></main></div></body></html>

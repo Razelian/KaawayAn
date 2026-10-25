@@ -1,0 +1,19 @@
+[thresholds]
+ramp_test_duration_s = 60.0
+throughput_duration_s = 300.0
+ramp_max_bad_samples = 0
+sequence_max_gaps = 0
+sample_rate_hz = 48000
+sample_rate_tolerance_pct = 1.0
+audio_rate_tolerance_pct = 5.0
+pair_tolerance_s = 0.1
+channel_min_rms = 0.001
+channel_max_peak = 0.98
+temperature_c_min = -10.0
+temperature_c_max = 60.0
+humidity_pct_min = 5.0
+humidity_pct_max = 95.0
+tau0_mad_max_s = 0.001
+minimum_free_disk_mb = 1024
+localization_median_error_max_m = 0.05
+localization_p95_error_max_m = 0.2

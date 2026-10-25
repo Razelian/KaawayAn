@@ -1,0 +1,9 @@
+# Python 3.11+; tested with Python 3.13.
+numpy==2.2.6
+scipy==1.16.1
+pyserial==3.5
+pytest==9.1.1
+pytest-cov==6.3.0
+streamlit==1.59.0
+# Install optional CPU/GPU classifier wheels using the PyTorch wheel selector
+# for the target platform, then install torchaudio at the matching version.
